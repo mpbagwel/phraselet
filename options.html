@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pausemark Options</title>
+    <link rel="stylesheet" href="src/shared.css">
+    <script src="src/options.js" defer></script>
+  </head>
+  <body class="options-shell">
+    <main class="options-panel">
+      <h1>Pausemark Options</h1>
+      <p class="muted">Store your OpenAI API key locally in Chrome to generate explanation cards when you save a phrase.</p>
+
+      <label>
+        <span>OpenAI API key</span>
+        <input id="api-key" type="password" autocomplete="off" placeholder="sk-...">
+      </label>
+
+      <label>
+        <span>Model</span>
+        <input id="model" type="text" autocomplete="off" value="gpt-4.1-mini">
+      </label>
+
+      <div class="actions-row">
+        <button id="save-options" class="primary-button" type="button">Save options</button>
+        <button id="clear-key" class="secondary-button" type="button">Clear key</button>
+      </div>
+
+      <p id="status" class="status-line" role="status"></p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pausemark</title>
+    <link rel="stylesheet" href="src/shared.css">
+    <script src="src/popup.js" defer></script>
+  </head>
+  <body class="popup-shell">
+    <header class="topbar">
+      <div>
+        <h1>Pausemark</h1>
+        <p id="card-count">No saved phrases yet</p>
+      </div>
+      <button id="open-options" class="icon-button" type="button" title="Options" aria-label="Options">...</button>
+    </header>
+
+    <section class="capture-row">
+      <button id="save-selection" class="primary-button" type="button">Save selection</button>
+      <input id="search" type="search" placeholder="Search saved phrases" autocomplete="off">
+    </section>
+
+    <main id="cards" class="cards" aria-live="polite"></main>
+  </body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Pausemark",
+  "description": "Save words and phrases from the web with source context and optional AI explanations.",
+  "version": "0.1.0",
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.openai.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content.js"
+      ]
+    }
+  ],
+  "action": {
+    "default_title": "Pausemark",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}
