@@ -22,7 +22,8 @@
       ],
       "js": [
         "src/content.js"
-      ]
+      ],
+      "all_frames": true
     }
   ],
   "action": {

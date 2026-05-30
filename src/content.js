@@ -7,13 +7,79 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
+document.addEventListener("selectionchange", notifySelectionChanged);
+document.addEventListener("keyup", notifySelectionChanged);
+document.addEventListener("mouseup", notifySelectionChanged);
+
 function getSelectionPayload() {
+  const formSelection = getFormSelectionPayload();
+  if (formSelection.selectedText) {
+    return formSelection;
+  }
+
   const selection = window.getSelection();
   const selectedText = cleanText(selection?.toString());
 
   return {
     selectedText,
     contextText: selectedText ? findContextText(selection) : "",
+    sourceTitle: document.title,
+    sourceUrl: location.href
+  };
+}
+
+function notifySelectionChanged() {
+  const payload = getSelectionPayload();
+
+  if (!payload.selectedText) {
+    return;
+  }
+
+  chrome.runtime.sendMessage({
+    type: "PAUSEMARK_SELECTION_CHANGED",
+    payload
+  }).catch(() => undefined);
+}
+
+function getFormSelectionPayload() {
+  const element = document.activeElement;
+
+  if (!isSelectableFormElement(element)) {
+    return emptyPayload();
+  }
+
+  let start;
+  let end;
+  try {
+    start = element.selectionStart;
+    end = element.selectionEnd;
+  } catch {
+    return emptyPayload();
+  }
+
+  if (typeof start !== "number" || typeof end !== "number" || start === end) {
+    return emptyPayload();
+  }
+
+  const selectedText = cleanText(element.value.slice(start, end));
+
+  return {
+    selectedText,
+    contextText: selectedText ? cleanText(element.value) : "",
+    sourceTitle: document.title,
+    sourceUrl: location.href
+  };
+}
+
+function isSelectableFormElement(element) {
+  return element instanceof HTMLTextAreaElement
+    || element instanceof HTMLInputElement && /^(search|tel|text|url)$/i.test(element.type);
+}
+
+function emptyPayload() {
+  return {
+    selectedText: "",
+    contextText: "",
     sourceTitle: document.title,
     sourceUrl: location.href
   };

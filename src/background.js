@@ -1,6 +1,8 @@
 const MENU_ID = "pausemark-save-selection";
 const CARDS_KEY = "pausemark.cards";
 const SETTINGS_KEY = "pausemark.settings";
+const SELECTIONS_KEY = "pausemark.selections";
+const SELECTION_TTL_MS = 2 * 60 * 1000;
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -31,6 +33,11 @@ chrome.commands.onCommand.addListener((command, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "PAUSEMARK_SELECTION_CHANGED") {
+    recordSelectionPayload(message.payload, sender).catch(() => undefined);
+    return false;
+  }
+
   if (message?.type === "PAUSEMARK_SAVE_ACTIVE_SELECTION") {
     handlePopupCapture(sendResponse);
     return true;
@@ -118,13 +125,70 @@ async function getSelectionPayload(tabId, fallback) {
       type: "PAUSEMARK_GET_SELECTION"
     });
 
-    return {
+    const selectedText = cleanText(response?.selectedText)
+      ? response.selectedText
+      : fallback.selectedText;
+    const payload = {
       ...fallback,
-      ...response
+      ...response,
+      selectedText
     };
+
+    if (cleanText(payload.selectedText)) {
+      return payload;
+    }
   } catch {
+    // Content scripts are unavailable on browser pages and some protected URLs.
+  }
+
+  return getRecentSelectionPayload(tabId, fallback);
+}
+
+async function recordSelectionPayload(payload, sender) {
+  const tabId = sender.tab?.id;
+  const selectedText = cleanText(payload?.selectedText);
+
+  if (!tabId || !selectedText) {
+    return;
+  }
+
+  const selections = await getRecentSelections();
+  selections[String(tabId)] = {
+    selectedText,
+    contextText: cleanText(payload.contextText),
+    sourceTitle: cleanText(payload.sourceTitle || sender.tab?.title),
+    sourceUrl: cleanText(payload.sourceUrl || sender.tab?.url),
+    tabUrl: cleanText(sender.tab?.url),
+    savedAt: Date.now()
+  };
+
+  await chrome.storage.session.set({ [SELECTIONS_KEY]: selections });
+}
+
+async function getRecentSelectionPayload(tabId, fallback) {
+  const selections = await getRecentSelections();
+  const payload = selections[String(tabId)];
+
+  if (!payload || Date.now() - payload.savedAt > SELECTION_TTL_MS) {
     return fallback;
   }
+
+  const payloadTabUrl = payload.tabUrl || payload.sourceUrl;
+  if (fallback.sourceUrl && payloadTabUrl && payloadTabUrl !== fallback.sourceUrl) {
+    return fallback;
+  }
+
+  return {
+    ...fallback,
+    ...payload
+  };
+}
+
+async function getRecentSelections() {
+  const result = await chrome.storage.session.get(SELECTIONS_KEY);
+  return result[SELECTIONS_KEY] && typeof result[SELECTIONS_KEY] === "object"
+    ? result[SELECTIONS_KEY]
+    : {};
 }
 
 async function enrichExistingCard(cardId) {
