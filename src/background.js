@@ -22,6 +22,14 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   });
 });
 
+chrome.commands.onCommand.addListener((command, tab) => {
+  if (command !== "save-selected-snippet") {
+    return;
+  }
+
+  handleShortcutCapture(tab);
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "PAUSEMARK_SAVE_ACTIVE_SELECTION") {
     handlePopupCapture(sendResponse);
@@ -48,6 +56,26 @@ async function handlePopupCapture(sendResponse) {
     sourceUrl: tab.url ?? ""
   });
   sendResponse(result);
+}
+
+async function handleShortcutCapture(commandTab) {
+  const tab = commandTab?.id
+    ? commandTab
+    : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+
+  if (!tab?.id) {
+    await setBadge("!");
+    return;
+  }
+
+  const result = await saveSelectionFromTab(tab.id, {
+    sourceTitle: tab.title ?? "",
+    sourceUrl: tab.url ?? ""
+  });
+
+  if (!result.ok) {
+    await setBadge("!");
+  }
 }
 
 async function saveSelectionFromTab(tabId, fallback) {

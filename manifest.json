@@ -29,5 +29,14 @@
     "default_title": "Pausemark",
     "default_popup": "popup.html"
   },
+  "commands": {
+    "save-selected-snippet": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Save selected snippet to Pausemark"
+    }
+  },
   "options_page": "options.html"
 }

@@ -12,7 +12,7 @@ Pausemark is a first-pass Chrome extension for saving words and phrases as you e
 ## Use it
 
 1. Highlight a word or phrase on any webpage.
-2. Right-click and choose **Save to Pausemark**.
+2. Press `Alt+Shift+S` (`Option+Shift+S` on macOS) or right-click and choose **Save to Pausemark**.
 3. Open the extension popup to review saved cards.
 4. Optional: open extension options and add an OpenAI API key to generate richer explanations.
 

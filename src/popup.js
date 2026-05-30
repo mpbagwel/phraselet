@@ -145,7 +145,7 @@ function emptyState(query) {
   return `
     <section class="empty-state">
       <h2>${query ? "No matches" : "Save what made you pause."}</h2>
-      <p>${query ? "Try a different search." : "Highlight text on a page, right-click, and choose Save to Pausemark."}</p>
+      <p>${query ? "Try a different search." : "Highlight text on a page, press Alt/Option+Shift+S, or right-click and choose Save to Pausemark."}</p>
     </section>
   `;
 }
