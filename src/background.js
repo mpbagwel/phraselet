@@ -17,7 +17,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     return;
   }
 
-  saveSelectionFromTab(tab.id, {
+  saveSelectionWithFeedback(tab.id, {
     selectedText: info.selectionText ?? "",
     sourceTitle: tab.title ?? "",
     sourceUrl: tab.url ?? ""
@@ -75,14 +75,21 @@ async function handleShortcutCapture(commandTab) {
     return;
   }
 
-  const result = await saveSelectionFromTab(tab.id, {
+  await saveSelectionWithFeedback(tab.id, {
     sourceTitle: tab.title ?? "",
     sourceUrl: tab.url ?? ""
   });
+}
+
+async function saveSelectionWithFeedback(tabId, fallback) {
+  const result = await saveSelectionFromTab(tabId, fallback);
+  await showCaptureToast(tabId, result);
 
   if (!result.ok) {
     await setBadge("!");
   }
+
+  return result;
 }
 
 async function saveSelectionFromTab(tabId, fallback) {
@@ -116,7 +123,23 @@ async function saveSelectionFromTab(tabId, fallback) {
   await setBadge("1");
   enrichExistingCard(card.id).catch(() => undefined);
 
-  return { ok: true, cardId: card.id };
+  return { ok: true, cardId: card.id, selectedText: truncateText(selectedText, 80) };
+}
+
+async function showCaptureToast(tabId, result) {
+  const message = result.ok
+    ? `Saved "${result.selectedText}"`
+    : result.error;
+
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: "PAUSEMARK_SHOW_TOAST",
+      tone: result.ok ? "success" : "error",
+      message
+    });
+  } catch {
+    // Some browser and extension pages cannot receive content-script messages.
+  }
 }
 
 async function getSelectionPayload(tabId, fallback) {
@@ -373,6 +396,16 @@ async function setBadge(text) {
 
 function cleanText(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function truncateText(value, maxLength) {
+  const text = cleanText(value);
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, maxLength - 3)}...`;
 }
 
 function fallbackDefinition(phrase) {

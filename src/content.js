@@ -1,10 +1,18 @@
+let toastHost;
+let toastTimer;
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "PAUSEMARK_GET_SELECTION") {
+  if (message?.type === "PAUSEMARK_GET_SELECTION") {
+    sendResponse(getSelectionPayload());
+    return true;
+  }
+
+  if (message?.type === "PAUSEMARK_SHOW_TOAST") {
+    showToast(message.message, message.tone);
     return false;
   }
 
-  sendResponse(getSelectionPayload());
-  return true;
+  return false;
 });
 
 document.addEventListener("selectionchange", notifySelectionChanged);
@@ -83,6 +91,70 @@ function emptyPayload() {
     sourceTitle: document.title,
     sourceUrl: location.href
   };
+}
+
+function showToast(message, tone) {
+  const host = getToastHost();
+  const toast = host.shadowRoot.querySelector("[data-toast]");
+  toast.textContent = cleanText(message);
+  toast.dataset.tone = tone === "error" ? "error" : "success";
+  toast.dataset.visible = "true";
+
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.dataset.visible = "false";
+  }, 2200);
+}
+
+function getToastHost() {
+  if (toastHost?.isConnected) {
+    return toastHost;
+  }
+
+  toastHost = document.createElement("div");
+  toastHost.id = "pausemark-toast-host";
+  const shadow = toastHost.attachShadow({ mode: "open" });
+  shadow.innerHTML = `
+    <style>
+      :host {
+        all: initial;
+      }
+
+      [data-toast] {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 2147483647;
+        max-width: min(360px, calc(100vw - 36px));
+        padding: 11px 13px;
+        border-radius: 8px;
+        box-shadow: 0 10px 30px rgb(23 32 38 / 22%);
+        color: #fff;
+        font: 13px/1.35 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        opacity: 0;
+        overflow-wrap: anywhere;
+        pointer-events: none;
+        transform: translateY(8px);
+        transition: opacity 150ms ease, transform 150ms ease;
+      }
+
+      [data-toast][data-tone="success"] {
+        background: #255f85;
+      }
+
+      [data-toast][data-tone="error"] {
+        background: #a43d3d;
+      }
+
+      [data-toast][data-visible="true"] {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    </style>
+    <div data-toast data-tone="success" data-visible="false" role="status" aria-live="polite"></div>
+  `;
+  document.documentElement.append(toastHost);
+  return toastHost;
 }
 
 function findContextText(selection) {
