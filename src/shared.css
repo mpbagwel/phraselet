@@ -72,6 +72,10 @@ h1 {
   color: var(--muted);
 }
 
+.status-line.is-error {
+  color: var(--bad);
+}
+
 .icon-button {
   width: 36px;
   height: 36px;
@@ -84,6 +88,13 @@ h1 {
   grid-template-columns: 132px 1fr;
   gap: 8px;
   padding: 12px 16px;
+}
+
+.library-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 12px;
 }
 
 .primary-button {
@@ -101,6 +112,17 @@ h1 {
 .secondary-button {
   min-height: 38px;
   padding: 0 12px;
+}
+
+.library-actions .secondary-button {
+  min-height: 32px;
+}
+
+.library-actions .status-line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 input {

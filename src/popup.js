@@ -11,6 +11,10 @@ const countEl = document.querySelector("#card-count");
 const searchEl = document.querySelector("#search");
 const saveSelectionEl = document.querySelector("#save-selection");
 const optionsEl = document.querySelector("#open-options");
+const exportCardsEl = document.querySelector("#export-cards");
+const importCardsEl = document.querySelector("#import-cards");
+const importFileEl = document.querySelector("#import-file");
+const libraryStatusEl = document.querySelector("#library-status");
 
 let cards = [];
 
@@ -46,6 +50,14 @@ saveSelectionEl.addEventListener("click", async () => {
 optionsEl.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
+
+exportCardsEl.addEventListener("click", exportCards);
+
+importCardsEl.addEventListener("click", () => {
+  importFileEl.click();
+});
+
+importFileEl.addEventListener("change", importCards);
 
 searchEl.addEventListener("input", render);
 
@@ -95,6 +107,7 @@ function render() {
   });
 
   countEl.textContent = cards.length === 1 ? "1 saved phrase" : `${cards.length} saved phrases`;
+  exportCardsEl.disabled = cards.length === 0;
 
   if (!visibleCards.length) {
     cardsEl.innerHTML = emptyState(query);
@@ -169,6 +182,141 @@ async function deleteCard(id) {
   });
 }
 
+function exportCards() {
+  if (!cards.length) {
+    showLibraryStatus("No saved phrases to export.", true);
+    return;
+  }
+
+  const payload = {
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+    cards
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json"
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `pausemark-export-${dateStamp()}.json`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showLibraryStatus(`Exported ${phraseCount(cards.length)}.`);
+}
+
+async function importCards() {
+  const [file] = importFileEl.files;
+  importFileEl.value = "";
+
+  if (!file) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await file.text());
+    const importedCards = extractImportCards(payload);
+    const normalizedCards = uniqueCardsById(
+      importedCards.map(normalizeImportedCard).filter(Boolean)
+    );
+
+    if (!normalizedCards.length) {
+      showLibraryStatus("No valid Pausemark phrases found.", true);
+      return;
+    }
+
+    const importedIds = new Set(normalizedCards.map((card) => card.id));
+    const nextCards = [
+      ...normalizedCards,
+      ...cards.filter((card) => !importedIds.has(card.id))
+    ];
+
+    await chrome.storage.local.set({ [CARDS_KEY]: nextCards });
+    showLibraryStatus(`Imported ${phraseCount(normalizedCards.length)}.`);
+  } catch {
+    showLibraryStatus("Import failed. Choose a valid Pausemark JSON file.", true);
+  }
+}
+
+function extractImportCards(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.cards)) {
+    return payload.cards;
+  }
+
+  return [];
+}
+
+function normalizeImportedCard(card) {
+  if (!card || typeof card !== "object") {
+    return null;
+  }
+
+  const selectedText = cleanText(card.selectedText);
+  if (!selectedText) {
+    return null;
+  }
+
+  const ai = card.ai && typeof card.ai === "object" ? card.ai : {};
+
+  return {
+    id: cleanText(card.id) || crypto.randomUUID(),
+    selectedText,
+    contextText: cleanText(card.contextText),
+    sourceTitle: cleanText(card.sourceTitle),
+    sourceUrl: cleanText(card.sourceUrl),
+    createdAt: cleanText(card.createdAt) || new Date().toISOString(),
+    status: card.status === "known" ? "known" : "learning",
+    note: cleanText(card.note),
+    ai: {
+      status: ["enriched", "pending", "needs_api_key", "error"].includes(ai.status)
+        ? ai.status
+        : "pending",
+      summary: cleanText(ai.summary),
+      contextMeaning: cleanText(ai.contextMeaning),
+      examples: Array.isArray(ai.examples)
+        ? ai.examples.map(cleanText).filter(Boolean).slice(0, 3)
+        : [],
+      relatedTerms: Array.isArray(ai.relatedTerms)
+        ? ai.relatedTerms.map(cleanText).filter(Boolean).slice(0, 5)
+        : [],
+      error: cleanText(ai.error)
+    }
+  };
+}
+
+function uniqueCardsById(cardList) {
+  const byId = new Map();
+  cardList.forEach((card) => {
+    byId.set(card.id, card);
+  });
+  return [...byId.values()];
+}
+
+function showLibraryStatus(message, isError = false) {
+  libraryStatusEl.textContent = message;
+  libraryStatusEl.classList.toggle("is-error", isError);
+  setTimeout(() => {
+    if (libraryStatusEl.textContent === message) {
+      libraryStatusEl.textContent = "";
+      libraryStatusEl.classList.remove("is-error");
+    }
+  }, 2200);
+}
+
+function phraseCount(count) {
+  return count === 1 ? "1 phrase" : `${count} phrases`;
+}
+
+function dateStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -188,4 +336,8 @@ function hostnameFromUrl(value) {
   } catch {
     return value;
   }
+}
+
+function cleanText(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
 }

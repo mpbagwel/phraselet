@@ -23,6 +23,7 @@ Cards are stored in `chrome.storage.local` on your machine.
 - Context-menu capture for highlighted text
 - Source title, URL, and nearby context capture
 - Local card library with search, delete, and known/learning status
+- JSON import/export for backing up or moving saved phrases
 - Optional OpenAI enrichment through the Responses API
 - No backend service required
 

@@ -21,6 +21,13 @@
       <input id="search" type="search" placeholder="Search saved phrases" autocomplete="off">
     </section>
 
+    <section class="library-actions">
+      <button id="export-cards" class="secondary-button" type="button">Export</button>
+      <button id="import-cards" class="secondary-button" type="button">Import</button>
+      <input id="import-file" type="file" accept="application/json,.json" hidden>
+      <p id="library-status" class="status-line" role="status"></p>
+    </section>
+
     <main id="cards" class="cards" aria-live="polite"></main>
   </body>
 </html>
