@@ -44,17 +44,26 @@ saveSelectionEl.addEventListener("click", async () => {
   saveSelectionEl.disabled = true;
   setCaptureButtonLabel("Saving…");
 
-  const result = await chrome.runtime.sendMessage({
-    type: "PAUSEMARK_SAVE_ACTIVE_SELECTION"
-  });
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: "PAUSEMARK_SAVE_ACTIVE_SELECTION"
+    });
 
-  saveSelectionEl.disabled = false;
-  setCaptureButtonLabel(result?.ok
-    ? result.duplicate ? "Already saved" : "Saved"
-    : "Save selection");
-  setTimeout(() => {
+    setCaptureButtonLabel(result?.ok
+      ? result.duplicate ? "Already saved" : "Saved"
+      : "Save selection");
+    if (!result?.ok) {
+      showLibraryStatus(result?.error || "Could not save the selection.", true);
+    }
+  } catch {
     setCaptureButtonLabel("Save selection");
-  }, 1200);
+    showLibraryStatus("Could not reach Pausemark. Reload the extension and try again.", true);
+  } finally {
+    saveSelectionEl.disabled = false;
+    setTimeout(() => {
+      setCaptureButtonLabel("Save selection");
+    }, 1200);
+  }
 });
 
 optionsEl.addEventListener("click", () => {

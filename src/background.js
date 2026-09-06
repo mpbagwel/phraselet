@@ -217,7 +217,73 @@ async function getSelectionPayload(tabId, fallback) {
     // Content scripts are unavailable on browser pages and some protected URLs.
   }
 
+  const injectedPayload = await getInjectedSelectionPayload(tabId);
+  if (cleanText(injectedPayload?.selectedText)) {
+    return {
+      ...fallback,
+      ...injectedPayload
+    };
+  }
+
   return getRecentSelectionPayload(tabId, fallback);
+}
+
+async function getInjectedSelectionPayload(tabId) {
+  if (!chrome.scripting?.executeScript) {
+    return null;
+  }
+
+  try {
+    const [injection] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: readSelectionFromPage
+    });
+    return injection?.result || null;
+  } catch {
+    // Script injection is unavailable on browser pages and other protected URLs.
+    return null;
+  }
+}
+
+function readSelectionFromPage() {
+  const normalize = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
+  const element = document.activeElement;
+  const isTextControl = element instanceof HTMLTextAreaElement
+    || element instanceof HTMLInputElement && /^(search|tel|text|url)$/i.test(element.type);
+
+  if (isTextControl) {
+    try {
+      const { selectionStart, selectionEnd } = element;
+      if (typeof selectionStart === "number" && typeof selectionEnd === "number" && selectionStart !== selectionEnd) {
+        return {
+          selectedText: normalize(element.value.slice(selectionStart, selectionEnd)),
+          contextText: normalize(element.value),
+          sourceTitle: document.title,
+          sourceUrl: location.href
+        };
+      }
+    } catch {
+      // Some input types do not expose their selection range.
+    }
+  }
+
+  const selection = window.getSelection();
+  const selectedText = normalize(selection?.toString());
+  let contextText = "";
+
+  if (selectedText && selection?.rangeCount) {
+    const node = selection.getRangeAt(0).commonAncestorContainer;
+    const selectionElement = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    const block = selectionElement?.closest("p, li, blockquote, article, section, main, div");
+    contextText = normalize(block?.innerText || block?.textContent).slice(0, 900);
+  }
+
+  return {
+    selectedText,
+    contextText,
+    sourceTitle: document.title,
+    sourceUrl: location.href
+  };
 }
 
 async function recordSelectionPayload(payload, sender) {
