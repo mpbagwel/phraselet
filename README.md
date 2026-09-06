@@ -22,7 +22,9 @@ Cards are stored in `chrome.storage.local` on your machine.
 
 - Context-menu capture for highlighted text
 - Source title, URL, and nearby context capture
-- Local card library with search, tags, filtering, delete, and known/learning status
+- Duplicate-aware capture and import
+- Local card library with editable notes, tags, filtering, and related phrases
+- Tag autocomplete, rename, and delete controls
 - JSON import/export for backing up or moving saved phrases
 - Configurable confirmation or popup after saving
 - Optional OpenAI enrichment through the Responses API
@@ -30,7 +32,6 @@ Cards are stored in `chrome.storage.local` on your machine.
 
 ## Next useful steps
 
-- Add spaced repetition review
 - Add collections
 - Add a side panel reading companion
 - Sync cards across browsers

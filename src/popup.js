@@ -10,6 +10,12 @@ const cardsEl = document.querySelector("#cards");
 const countEl = document.querySelector("#card-count");
 const searchEl = document.querySelector("#search");
 const tagFilterEl = document.querySelector("#tag-filter");
+const tagSuggestionsEl = document.querySelector("#tag-suggestions");
+const manageTagEl = document.querySelector("#manage-tag");
+const tagManagerEl = document.querySelector("#tag-manager");
+const tagManagerFormEl = document.querySelector("#tag-manager-form");
+const tagNameEl = document.querySelector("#tag-name");
+const deleteTagEl = document.querySelector("#delete-tag");
 const saveSelectionEl = document.querySelector("#save-selection");
 const optionsEl = document.querySelector("#open-options");
 const exportCardsEl = document.querySelector("#export-cards");
@@ -18,6 +24,7 @@ const importFileEl = document.querySelector("#import-file");
 const libraryStatusEl = document.querySelector("#library-status");
 
 let cards = [];
+let pendingTagSelection = null;
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -42,7 +49,9 @@ saveSelectionEl.addEventListener("click", async () => {
   });
 
   saveSelectionEl.disabled = false;
-  saveSelectionEl.textContent = result?.ok ? "Saved" : "Save selection";
+  saveSelectionEl.textContent = result?.ok
+    ? result.duplicate ? "Already saved" : "Saved"
+    : "Save selection";
   setTimeout(() => {
     saveSelectionEl.textContent = "Save selection";
   }, 1200);
@@ -61,7 +70,13 @@ importCardsEl.addEventListener("click", () => {
 importFileEl.addEventListener("change", importCards);
 
 searchEl.addEventListener("input", render);
-tagFilterEl.addEventListener("change", render);
+tagFilterEl.addEventListener("change", () => {
+  closeTagManager();
+  render();
+});
+manageTagEl.addEventListener("click", toggleTagManager);
+tagManagerFormEl.addEventListener("submit", renameSelectedTag);
+deleteTagEl.addEventListener("click", deleteSelectedTag);
 
 cardsEl.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
@@ -70,6 +85,11 @@ cardsEl.addEventListener("click", async (event) => {
   }
 
   const { action, id } = button.dataset;
+
+  if (action === "focus-card") {
+    focusCard(id);
+    return;
+  }
 
   if (action === "remove-tag") {
     const card = cards.find((candidate) => candidate.id === id);
@@ -107,12 +127,22 @@ cardsEl.addEventListener("click", async (event) => {
 });
 
 cardsEl.addEventListener("submit", async (event) => {
-  const form = event.target.closest("form[data-action='add-tag']");
+  const form = event.target.closest("form[data-action]");
   if (!form) {
     return;
   }
 
   event.preventDefault();
+
+  if (form.dataset.action === "edit-card") {
+    await saveCardEdits(form);
+    return;
+  }
+
+  if (form.dataset.action !== "add-tag") {
+    return;
+  }
+
   const card = cards.find((candidate) => candidate.id === form.dataset.id);
   const input = form.elements.namedItem("tag");
   const tag = normalizeTag(input?.value);
@@ -138,6 +168,69 @@ cardsEl.addEventListener("submit", async (event) => {
   });
   showLibraryStatus(`Added tag ${tag}.`);
 });
+
+async function saveCardEdits(form) {
+  const card = cards.find((candidate) => candidate.id === form.dataset.id);
+  if (!card) {
+    return;
+  }
+
+  const selectedText = cleanText(form.elements.namedItem("selectedText")?.value);
+  const contextText = cleanText(form.elements.namedItem("contextText")?.value);
+  const sourceTitle = cleanText(form.elements.namedItem("sourceTitle")?.value);
+  const note = cleanMultilineText(form.elements.namedItem("note")?.value, 2000);
+
+  if (!selectedText) {
+    showLibraryStatus("A phrase cannot be empty.", true);
+    return;
+  }
+
+  const duplicate = cards.find((candidate) => (
+    candidate.id !== card.id
+    && cardIdentity(candidate) === cardIdentity({ selectedText, sourceUrl: card.sourceUrl })
+  ));
+  if (duplicate) {
+    showLibraryStatus("That phrase is already saved from this page.", true);
+    return;
+  }
+
+  const explanationChanged = selectedText !== cleanText(card.selectedText)
+    || contextText !== cleanText(card.contextText);
+  const updatedCard = {
+    ...card,
+    selectedText,
+    contextText,
+    sourceTitle,
+    note
+  };
+
+  await upsertCard(updatedCard);
+  showLibraryStatus("Saved changes.");
+
+  if (explanationChanged) {
+    chrome.runtime.sendMessage({
+      type: "PAUSEMARK_ENRICH_CARD",
+      cardId: card.id
+    }).catch(() => undefined);
+  }
+}
+
+function focusCard(id) {
+  searchEl.value = "";
+  tagFilterEl.value = "";
+  closeTagManager();
+  render();
+
+  const cardEl = [...cardsEl.querySelectorAll("[data-card-id]")]
+    .find((candidate) => candidate.dataset.cardId === id);
+  if (!cardEl) {
+    return;
+  }
+
+  cardEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  cardEl.classList.add("is-focused");
+  setTimeout(() => cardEl.classList.remove("is-focused"), 1600);
+}
 
 function render() {
   const query = searchEl.value.trim().toLowerCase();
@@ -187,20 +280,28 @@ function renderCard(card) {
     ? `<a href="${escapeAttribute(card.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(card.sourceTitle || hostnameFromUrl(card.sourceUrl))}</a>`
     : "";
   const tags = renderTags(card, cardId);
+  const note = card.note
+    ? `<p class="card-note">${escapeHtml(card.note)}</p>`
+    : "";
+  const relatedPhrases = renderRelatedPhrases(card);
+  const editor = renderCardEditor(card, cardId);
 
   return `
-    <article class="phrase-card ${card.status === "known" ? "is-known" : ""}">
+    <article class="phrase-card ${card.status === "known" ? "is-known" : ""}" data-card-id="${cardId}">
       <div class="card-header">
         <h2>${escapeHtml(card.selectedText)}</h2>
         <span>${escapeHtml(status)}</span>
       </div>
+      ${note}
       ${ai.summary ? `<p>${escapeHtml(ai.summary)}</p>` : ""}
       ${ai.contextMeaning ? `<p class="context-meaning">${escapeHtml(ai.contextMeaning)}</p>` : ""}
       ${examples}
       ${relatedTerms}
       ${tags}
+      ${relatedPhrases}
       ${card.contextText ? `<details><summary>Source context</summary><p>${escapeHtml(card.contextText)}</p></details>` : ""}
       ${ai.error ? `<p class="error-text">${escapeHtml(ai.error)}</p>` : ""}
+      ${editor}
       <footer>
         <div>${source}</div>
         <div class="card-actions">
@@ -231,10 +332,76 @@ function renderTags(card, cardId) {
     <div class="tag-editor">
       ${tagButtons ? `<div class="tag-list" aria-label="Tags">${tagButtons}</div>` : ""}
       <form data-action="add-tag" data-id="${cardId}">
-        <input name="tag" type="text" maxlength="40" placeholder="Add tag" aria-label="Add a tag to ${escapeAttribute(card.selectedText)}" autocomplete="off">
+        <input name="tag" type="text" maxlength="40" placeholder="Add tag" aria-label="Add a tag to ${escapeAttribute(card.selectedText)}" list="tag-suggestions" autocomplete="off">
         <button type="submit" title="Add tag" aria-label="Add tag">+</button>
       </form>
     </div>
+  `;
+}
+
+function renderRelatedPhrases(card) {
+  const relatedCards = findRelatedCards(card);
+  if (!relatedCards.length) {
+    return "";
+  }
+
+  const links = relatedCards.map(({ card: relatedCard, sharedTags }) => `
+    <button data-action="focus-card" data-id="${escapeAttribute(relatedCard.id)}" type="button">
+      ${escapeHtml(relatedCard.selectedText)}
+      <span>${sharedTags} shared ${sharedTags === 1 ? "tag" : "tags"}</span>
+    </button>
+  `).join("");
+
+  return `
+    <details class="related-phrases">
+      <summary>Related phrases (${relatedCards.length})</summary>
+      <div class="related-list">${links}</div>
+    </details>
+  `;
+}
+
+function findRelatedCards(card) {
+  const tagKeys = new Set(normalizeTags(card.tags).map(normalizeTagKey));
+  if (!tagKeys.size) {
+    return [];
+  }
+
+  return cards
+    .filter((candidate) => candidate.id !== card.id)
+    .map((candidate) => ({
+      card: candidate,
+      sharedTags: normalizeTags(candidate.tags)
+        .filter((tag) => tagKeys.has(normalizeTagKey(tag))).length
+    }))
+    .filter((candidate) => candidate.sharedTags > 0)
+    .sort((left, right) => right.sharedTags - left.sharedTags)
+    .slice(0, 5);
+}
+
+function renderCardEditor(card, cardId) {
+  return `
+    <details class="card-editor">
+      <summary>Edit phrase</summary>
+      <form data-action="edit-card" data-id="${cardId}">
+        <label>
+          <span>Phrase</span>
+          <input name="selectedText" type="text" maxlength="500" value="${escapeAttribute(card.selectedText)}" required>
+        </label>
+        <label>
+          <span>Personal note</span>
+          <textarea name="note" maxlength="2000" rows="3">${escapeHtml(card.note)}</textarea>
+        </label>
+        <label>
+          <span>Source title</span>
+          <input name="sourceTitle" type="text" maxlength="300" value="${escapeAttribute(card.sourceTitle)}">
+        </label>
+        <label>
+          <span>Source context</span>
+          <textarea name="contextText" maxlength="3000" rows="4">${escapeHtml(card.contextText)}</textarea>
+        </label>
+        <button class="primary-button" type="submit">Save changes</button>
+      </form>
+    </details>
   `;
 }
 
@@ -249,7 +416,11 @@ function emptyState(query, selectedTag) {
 }
 
 function renderTagFilter() {
-  const previousValue = normalizeTagKey(tagFilterEl.value);
+  const requestedValue = pendingTagSelection === null
+    ? tagFilterEl.value
+    : pendingTagSelection;
+  const previousValue = normalizeTagKey(requestedValue);
+  pendingTagSelection = null;
   const tags = normalizeTags(cards.flatMap((card) => card.tags || []))
     .sort((left, right) => left.localeCompare(right));
 
@@ -257,10 +428,93 @@ function renderTagFilter() {
     '<option value="">All tags</option>',
     ...tags.map((tag) => `<option value="${escapeAttribute(tag)}">${escapeHtml(tag)}</option>`)
   ].join("");
+  tagSuggestionsEl.innerHTML = tags
+    .map((tag) => `<option value="${escapeAttribute(tag)}"></option>`)
+    .join("");
 
   const selectedTag = tags.find((tag) => normalizeTagKey(tag) === previousValue);
   tagFilterEl.value = selectedTag || "";
   tagFilterEl.disabled = tags.length === 0;
+  manageTagEl.disabled = !selectedTag;
+
+  if (!tagManagerEl.hidden) {
+    if (selectedTag) {
+      tagNameEl.value = selectedTag;
+    } else {
+      closeTagManager();
+    }
+  }
+}
+
+function toggleTagManager() {
+  if (manageTagEl.disabled) {
+    return;
+  }
+
+  tagManagerEl.hidden = !tagManagerEl.hidden;
+  manageTagEl.textContent = tagManagerEl.hidden ? "Manage" : "Close";
+
+  if (!tagManagerEl.hidden) {
+    tagNameEl.value = tagFilterEl.value;
+    tagNameEl.focus();
+    tagNameEl.select();
+  }
+}
+
+function closeTagManager() {
+  tagManagerEl.hidden = true;
+  manageTagEl.textContent = "Manage";
+}
+
+async function renameSelectedTag(event) {
+  event.preventDefault();
+  const currentTag = normalizeTag(tagFilterEl.value);
+  const nextTag = normalizeTag(tagNameEl.value);
+
+  if (!currentTag || !nextTag) {
+    showLibraryStatus("Enter a tag name.", true);
+    return;
+  }
+
+  if (normalizeTagKey(currentTag) === normalizeTagKey(nextTag)) {
+    closeTagManager();
+    return;
+  }
+
+  pendingTagSelection = nextTag;
+  await chrome.storage.local.set({
+    [CARDS_KEY]: cards.map((card) => ({
+      ...card,
+      tags: normalizeTags(
+        normalizeTags(card.tags)
+          .map((tag) => normalizeTagKey(tag) === normalizeTagKey(currentTag) ? nextTag : tag)
+      )
+    }))
+  });
+  closeTagManager();
+  showLibraryStatus(`Renamed ${currentTag} to ${nextTag}.`);
+}
+
+async function deleteSelectedTag() {
+  const currentTag = normalizeTag(tagFilterEl.value);
+  if (!currentTag) {
+    return;
+  }
+
+  if (!window.confirm(`Remove the tag "${currentTag}" from every phrase?`)) {
+    return;
+  }
+
+  pendingTagSelection = "";
+  await chrome.storage.local.set({
+    [CARDS_KEY]: cards.map((card) => ({
+      ...card,
+      tags: normalizeTags(card.tags)
+        .filter((tag) => normalizeTagKey(tag) !== normalizeTagKey(currentTag))
+    }))
+  });
+  closeTagManager();
+  showLibraryStatus(`Deleted tag ${currentTag}.`);
 }
 
 async function getCards() {
@@ -318,7 +572,7 @@ async function importCards() {
   try {
     const payload = JSON.parse(await file.text());
     const importedCards = extractImportCards(payload);
-    const normalizedCards = uniqueCardsById(
+    const normalizedCards = collapseDuplicateCards(
       importedCards.map(normalizeImportedCard).filter(Boolean)
     );
 
@@ -327,14 +581,10 @@ async function importCards() {
       return;
     }
 
-    const importedIds = new Set(normalizedCards.map((card) => card.id));
-    const nextCards = [
-      ...normalizedCards,
-      ...cards.filter((card) => !importedIds.has(card.id))
-    ];
+    const importResult = mergeImportedCards(normalizedCards, cards);
 
-    await chrome.storage.local.set({ [CARDS_KEY]: nextCards });
-    showLibraryStatus(`Imported ${phraseCount(normalizedCards.length)}.`);
+    await chrome.storage.local.set({ [CARDS_KEY]: importResult.cards });
+    showLibraryStatus(formatImportStatus(importResult));
   } catch {
     showLibraryStatus("Import failed. Choose a valid Pausemark JSON file.", true);
   }
@@ -372,7 +622,7 @@ function normalizeImportedCard(card) {
     sourceUrl: cleanText(card.sourceUrl),
     createdAt: cleanText(card.createdAt) || new Date().toISOString(),
     status: card.status === "known" ? "known" : "learning",
-    note: cleanText(card.note),
+    note: cleanMultilineText(card.note, 2000),
     tags: normalizeTags(card.tags),
     ai: {
       status: ["enriched", "pending", "needs_api_key", "error"].includes(ai.status)
@@ -391,12 +641,80 @@ function normalizeImportedCard(card) {
   };
 }
 
-function uniqueCardsById(cardList) {
-  const byId = new Map();
-  cardList.forEach((card) => {
-    byId.set(card.id, card);
+function collapseDuplicateCards(cardList) {
+  return cardList.reduce((result, card) => {
+    const duplicateIndex = result.findIndex((candidate) => (
+      candidate.id === card.id || cardIdentity(candidate) === cardIdentity(card)
+    ));
+
+    if (duplicateIndex === -1) {
+      result.push(card);
+    } else {
+      result[duplicateIndex] = mergeCardRecords(result[duplicateIndex], card);
+    }
+
+    return result;
+  }, []);
+}
+
+function mergeImportedCards(importedCards, existingCards) {
+  const remainingCards = [...existingCards];
+  const mergedCards = [];
+  let added = 0;
+  let updated = 0;
+
+  importedCards.forEach((importedCard) => {
+    const duplicateIndex = remainingCards.findIndex((candidate) => (
+      candidate.id === importedCard.id
+      || cardIdentity(candidate) === cardIdentity(importedCard)
+    ));
+
+    if (duplicateIndex === -1) {
+      mergedCards.push(importedCard);
+      added += 1;
+      return;
+    }
+
+    const [existingCard] = remainingCards.splice(duplicateIndex, 1);
+    mergedCards.push(mergeCardRecords(existingCard, importedCard));
+    updated += 1;
   });
-  return [...byId.values()];
+
+  return {
+    cards: [...mergedCards, ...remainingCards],
+    added,
+    updated
+  };
+}
+
+function mergeCardRecords(existingCard, incomingCard) {
+  const incomingAiHasContent = incomingCard.ai?.summary
+    || incomingCard.ai?.contextMeaning
+    || incomingCard.ai?.examples?.length
+    || incomingCard.ai?.relatedTerms?.length;
+
+  return {
+    ...existingCard,
+    ...incomingCard,
+    id: existingCard.id || incomingCard.id,
+    contextText: incomingCard.contextText || existingCard.contextText || "",
+    sourceTitle: incomingCard.sourceTitle || existingCard.sourceTitle || "",
+    sourceUrl: incomingCard.sourceUrl || existingCard.sourceUrl || "",
+    note: incomingCard.note || existingCard.note || "",
+    tags: normalizeTags([...(existingCard.tags || []), ...(incomingCard.tags || [])]),
+    ai: incomingAiHasContent ? incomingCard.ai : existingCard.ai || incomingCard.ai
+  };
+}
+
+function formatImportStatus({ added, updated }) {
+  const parts = [];
+  if (added) {
+    parts.push(`${added} added`);
+  }
+  if (updated) {
+    parts.push(`${updated} updated`);
+  }
+  return `Import complete: ${parts.join(", ")}.`;
 }
 
 function showLibraryStatus(message, isError = false) {
@@ -443,6 +761,15 @@ function cleanText(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
+function cleanMultilineText(value, maxLength) {
+  return String(value ?? "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, maxLength);
+}
+
 function normalizeTag(value) {
   return cleanText(value).slice(0, 40);
 }
@@ -466,4 +793,20 @@ function normalizeTags(tags) {
     seen.add(key);
     return true;
   }).slice(0, 12);
+}
+
+function cardIdentity(card) {
+  return `${cleanText(card.selectedText).toLowerCase()}\n${canonicalizeUrl(card.sourceUrl)}`;
+}
+
+function canonicalizeUrl(value) {
+  const sourceUrl = cleanText(value);
+
+  try {
+    const url = new URL(sourceUrl);
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return sourceUrl;
+  }
 }

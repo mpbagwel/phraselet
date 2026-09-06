@@ -26,7 +26,18 @@
       <select id="tag-filter" aria-label="Filter by tag">
         <option value="">All tags</option>
       </select>
+      <button id="manage-tag" class="secondary-button" type="button" disabled>Manage</button>
     </section>
+
+    <section id="tag-manager" class="tag-manager" hidden>
+      <form id="tag-manager-form">
+        <input id="tag-name" name="tagName" type="text" maxlength="40" aria-label="Tag name" autocomplete="off">
+        <button class="secondary-button" type="submit">Rename</button>
+        <button id="delete-tag" class="danger-button" type="button">Delete</button>
+      </form>
+    </section>
+
+    <datalist id="tag-suggestions"></datalist>
 
     <section class="library-actions">
       <button id="export-cards" class="secondary-button" type="button">Export</button>

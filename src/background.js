@@ -128,12 +128,36 @@ async function saveSelectionFromTab(tabId, fallback) {
     return { ok: false, error: "Select a word or phrase first." };
   }
 
+  const sourceTitle = payload.sourceTitle || fallback.sourceTitle || "";
+  const sourceUrl = payload.sourceUrl || fallback.sourceUrl || "";
+  const cards = await getCards();
+  const existingCard = cards.find((card) => (
+    cardIdentity(card.selectedText, card.sourceUrl) === cardIdentity(selectedText, sourceUrl)
+  ));
+
+  if (existingCard) {
+    await upsertCard({
+      ...existingCard,
+      contextText: cleanText(payload.contextText) || existingCard.contextText || "",
+      sourceTitle: sourceTitle || existingCard.sourceTitle || "",
+      sourceUrl: sourceUrl || existingCard.sourceUrl || ""
+    });
+    await setBadge("1");
+
+    return {
+      ok: true,
+      duplicate: true,
+      cardId: existingCard.id,
+      selectedText: truncateText(selectedText, 80)
+    };
+  }
+
   const card = {
     id: crypto.randomUUID(),
     selectedText,
     contextText: cleanText(payload.contextText),
-    sourceTitle: payload.sourceTitle || fallback.sourceTitle || "",
-    sourceUrl: payload.sourceUrl || fallback.sourceUrl || "",
+    sourceTitle,
+    sourceUrl,
     createdAt: new Date().toISOString(),
     status: "learning",
     note: "",
@@ -157,7 +181,7 @@ async function saveSelectionFromTab(tabId, fallback) {
 
 async function showCaptureToast(tabId, result) {
   const message = result.ok
-    ? `Saved "${result.selectedText}"`
+    ? `${result.duplicate ? "Already saved" : "Saved"} "${result.selectedText}"`
     : result.error;
 
   try {
@@ -436,6 +460,22 @@ function truncateText(value, maxLength) {
   }
 
   return `${text.slice(0, maxLength - 3)}...`;
+}
+
+function cardIdentity(selectedText, sourceUrl) {
+  return `${cleanText(selectedText).toLowerCase()}\n${canonicalizeUrl(sourceUrl)}`;
+}
+
+function canonicalizeUrl(value) {
+  const sourceUrl = cleanText(value);
+
+  try {
+    const url = new URL(sourceUrl);
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return sourceUrl;
+  }
 }
 
 function fallbackDefinition(phrase) {
