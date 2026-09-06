@@ -20,7 +20,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   saveSelectionWithFeedback(tab.id, {
     selectedText: info.selectionText ?? "",
     sourceTitle: tab.title ?? "",
-    sourceUrl: tab.url ?? ""
+    sourceUrl: tab.url ?? "",
+    windowId: tab.windowId
   });
 });
 
@@ -77,19 +78,46 @@ async function handleShortcutCapture(commandTab) {
 
   await saveSelectionWithFeedback(tab.id, {
     sourceTitle: tab.title ?? "",
-    sourceUrl: tab.url ?? ""
+    sourceUrl: tab.url ?? "",
+    windowId: tab.windowId
   });
 }
 
 async function saveSelectionWithFeedback(tabId, fallback) {
   const result = await saveSelectionFromTab(tabId, fallback);
-  await showCaptureToast(tabId, result);
 
   if (!result.ok) {
+    await showCaptureToast(tabId, result);
     await setBadge("!");
+    return result;
+  }
+
+  const settings = await getSettings();
+  const openedPopup = settings.afterSave === "open_popup"
+    && await openPausemarkPopup(fallback.windowId);
+
+  if (!openedPopup) {
+    await showCaptureToast(tabId, result);
   }
 
   return result;
+}
+
+async function openPausemarkPopup(windowId) {
+  if (typeof chrome.action.openPopup !== "function") {
+    return false;
+  }
+
+  try {
+    if (Number.isInteger(windowId)) {
+      await chrome.action.openPopup({ windowId });
+    } else {
+      await chrome.action.openPopup();
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function saveSelectionFromTab(tabId, fallback) {
@@ -385,6 +413,7 @@ async function getSettings() {
   return {
     apiKey: "",
     model: "gpt-4.1-mini",
+    afterSave: "confirmation",
     ...result[SETTINGS_KEY]
   };
 }
