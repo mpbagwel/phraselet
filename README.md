@@ -22,7 +22,7 @@ Cards are stored in `chrome.storage.local` on your machine.
 
 - Context-menu capture for highlighted text
 - Source title, URL, and nearby context capture
-- Local card library with search, delete, and known/learning status
+- Local card library with search, tags, filtering, delete, and known/learning status
 - JSON import/export for backing up or moving saved phrases
 - Optional OpenAI enrichment through the Responses API
 - No backend service required
@@ -30,7 +30,7 @@ Cards are stored in `chrome.storage.local` on your machine.
 ## Next useful steps
 
 - Add spaced repetition review
-- Add tags and collections
-- Add export/import
+- Add collections
+- Add an option to open Pausemark after saving
 - Add a side panel reading companion
 - Sync cards across browsers

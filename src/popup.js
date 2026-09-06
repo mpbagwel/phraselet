@@ -9,6 +9,7 @@ const STATUS_LABELS = {
 const cardsEl = document.querySelector("#cards");
 const countEl = document.querySelector("#card-count");
 const searchEl = document.querySelector("#search");
+const tagFilterEl = document.querySelector("#tag-filter");
 const saveSelectionEl = document.querySelector("#save-selection");
 const optionsEl = document.querySelector("#open-options");
 const exportCardsEl = document.querySelector("#export-cards");
@@ -60,6 +61,7 @@ importCardsEl.addEventListener("click", () => {
 importFileEl.addEventListener("change", importCards);
 
 searchEl.addEventListener("input", render);
+tagFilterEl.addEventListener("change", render);
 
 cardsEl.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
@@ -68,6 +70,18 @@ cardsEl.addEventListener("click", async (event) => {
   }
 
   const { action, id } = button.dataset;
+
+  if (action === "remove-tag") {
+    const card = cards.find((candidate) => candidate.id === id);
+    if (card) {
+      const tagKey = normalizeTagKey(button.dataset.tag);
+      await upsertCard({
+        ...card,
+        tags: normalizeTags(card.tags).filter((tag) => normalizeTagKey(tag) !== tagKey)
+      });
+    }
+  }
+
   if (action === "delete") {
     await deleteCard(id);
   }
@@ -92,25 +106,67 @@ cardsEl.addEventListener("click", async (event) => {
   }
 });
 
+cardsEl.addEventListener("submit", async (event) => {
+  const form = event.target.closest("form[data-action='add-tag']");
+  if (!form) {
+    return;
+  }
+
+  event.preventDefault();
+  const card = cards.find((candidate) => candidate.id === form.dataset.id);
+  const input = form.elements.namedItem("tag");
+  const tag = normalizeTag(input?.value);
+
+  if (!card || !tag) {
+    return;
+  }
+
+  const tags = normalizeTags(card.tags);
+  if (tags.some((candidate) => normalizeTagKey(candidate) === normalizeTagKey(tag))) {
+    showLibraryStatus(`Already tagged ${tag}.`, true);
+    return;
+  }
+
+  if (tags.length >= 12) {
+    showLibraryStatus("A phrase can have up to 12 tags.", true);
+    return;
+  }
+
+  await upsertCard({
+    ...card,
+    tags: [...tags, tag]
+  });
+  showLibraryStatus(`Added tag ${tag}.`);
+});
+
 function render() {
   const query = searchEl.value.trim().toLowerCase();
+  renderTagFilter();
+  const selectedTag = normalizeTagKey(tagFilterEl.value);
   const visibleCards = cards.filter((card) => {
+    const tags = normalizeTags(card.tags);
     const haystack = [
       card.selectedText,
       card.contextText,
       card.sourceTitle,
       card.ai?.summary,
-      card.ai?.contextMeaning
+      card.ai?.contextMeaning,
+      ...tags
     ].join(" ").toLowerCase();
 
-    return haystack.includes(query);
+    const matchesTag = !selectedTag
+      || tags.some((tag) => normalizeTagKey(tag) === selectedTag);
+
+    return haystack.includes(query) && matchesTag;
   });
 
-  countEl.textContent = cards.length === 1 ? "1 saved phrase" : `${cards.length} saved phrases`;
+  countEl.textContent = query || selectedTag
+    ? `${visibleCards.length} of ${cards.length} phrases`
+    : cards.length === 1 ? "1 saved phrase" : `${cards.length} saved phrases`;
   exportCardsEl.disabled = cards.length === 0;
 
   if (!visibleCards.length) {
-    cardsEl.innerHTML = emptyState(query);
+    cardsEl.innerHTML = emptyState(query, selectedTag);
     return;
   }
 
@@ -119,6 +175,7 @@ function render() {
 
 function renderCard(card) {
   const ai = card.ai || {};
+  const cardId = escapeAttribute(card.id);
   const status = STATUS_LABELS[ai.status] || "Saved";
   const examples = Array.isArray(ai.examples) && ai.examples.length
     ? `<ul>${ai.examples.map((example) => `<li>${escapeHtml(example)}</li>`).join("")}</ul>`
@@ -129,6 +186,7 @@ function renderCard(card) {
   const source = card.sourceUrl
     ? `<a href="${escapeAttribute(card.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(card.sourceTitle || hostnameFromUrl(card.sourceUrl))}</a>`
     : "";
+  const tags = renderTags(card, cardId);
 
   return `
     <article class="phrase-card ${card.status === "known" ? "is-known" : ""}">
@@ -140,27 +198,69 @@ function renderCard(card) {
       ${ai.contextMeaning ? `<p class="context-meaning">${escapeHtml(ai.contextMeaning)}</p>` : ""}
       ${examples}
       ${relatedTerms}
+      ${tags}
       ${card.contextText ? `<details><summary>Source context</summary><p>${escapeHtml(card.contextText)}</p></details>` : ""}
       ${ai.error ? `<p class="error-text">${escapeHtml(ai.error)}</p>` : ""}
       <footer>
         <div>${source}</div>
         <div class="card-actions">
-          <button data-action="enrich" data-id="${card.id}" type="button">Explain</button>
-          <button data-action="toggle-known" data-id="${card.id}" type="button">${card.status === "known" ? "Learning" : "Known"}</button>
-          <button data-action="delete" data-id="${card.id}" type="button">Delete</button>
+          <button data-action="enrich" data-id="${cardId}" type="button">Explain</button>
+          <button data-action="toggle-known" data-id="${cardId}" type="button">${card.status === "known" ? "Learning" : "Known"}</button>
+          <button data-action="delete" data-id="${cardId}" type="button">Delete</button>
         </div>
       </footer>
     </article>
   `;
 }
 
-function emptyState(query) {
+function renderTags(card, cardId) {
+  const tags = normalizeTags(card.tags);
+  const tagButtons = tags.map((tag) => `
+    <button
+      class="tag-chip"
+      data-action="remove-tag"
+      data-id="${cardId}"
+      data-tag="${escapeAttribute(tag)}"
+      type="button"
+      title="Remove tag"
+      aria-label="Remove tag ${escapeAttribute(tag)}"
+    >${escapeHtml(tag)} <span aria-hidden="true">x</span></button>
+  `).join("");
+
+  return `
+    <div class="tag-editor">
+      ${tagButtons ? `<div class="tag-list" aria-label="Tags">${tagButtons}</div>` : ""}
+      <form data-action="add-tag" data-id="${cardId}">
+        <input name="tag" type="text" maxlength="40" placeholder="Add tag" aria-label="Add a tag to ${escapeAttribute(card.selectedText)}" autocomplete="off">
+        <button type="submit" title="Add tag" aria-label="Add tag">+</button>
+      </form>
+    </div>
+  `;
+}
+
+function emptyState(query, selectedTag) {
+  const filtered = query || selectedTag;
   return `
     <section class="empty-state">
-      <h2>${query ? "No matches" : "Save what made you pause."}</h2>
-      <p>${query ? "Try a different search." : "Highlight text on a page, press Alt/Option+Shift+S, or right-click and choose Save to Pausemark."}</p>
+      <h2>${filtered ? "No matches" : "Save what made you pause."}</h2>
+      <p>${filtered ? "Try a different search or tag." : "Highlight text on a page, press Alt/Option+Shift+S, or right-click and choose Save to Pausemark."}</p>
     </section>
   `;
+}
+
+function renderTagFilter() {
+  const previousValue = normalizeTagKey(tagFilterEl.value);
+  const tags = normalizeTags(cards.flatMap((card) => card.tags || []))
+    .sort((left, right) => left.localeCompare(right));
+
+  tagFilterEl.innerHTML = [
+    '<option value="">All tags</option>',
+    ...tags.map((tag) => `<option value="${escapeAttribute(tag)}">${escapeHtml(tag)}</option>`)
+  ].join("");
+
+  const selectedTag = tags.find((tag) => normalizeTagKey(tag) === previousValue);
+  tagFilterEl.value = selectedTag || "";
+  tagFilterEl.disabled = tags.length === 0;
 }
 
 async function getCards() {
@@ -273,6 +373,7 @@ function normalizeImportedCard(card) {
     createdAt: cleanText(card.createdAt) || new Date().toISOString(),
     status: card.status === "known" ? "known" : "learning",
     note: cleanText(card.note),
+    tags: normalizeTags(card.tags),
     ai: {
       status: ["enriched", "pending", "needs_api_key", "error"].includes(ai.status)
         ? ai.status
@@ -340,4 +441,29 @@ function hostnameFromUrl(value) {
 
 function cleanText(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeTag(value) {
+  return cleanText(value).slice(0, 40);
+}
+
+function normalizeTagKey(value) {
+  return normalizeTag(value).toLowerCase();
+}
+
+function normalizeTags(tags) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  const seen = new Set();
+  return tags.map(normalizeTag).filter((tag) => {
+    const key = normalizeTagKey(tag);
+    if (!key || seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  }).slice(0, 12);
 }

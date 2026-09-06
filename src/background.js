@@ -109,6 +109,7 @@ async function saveSelectionFromTab(tabId, fallback) {
     createdAt: new Date().toISOString(),
     status: "learning",
     note: "",
+    tags: [],
     ai: {
       status: "pending",
       summary: "",

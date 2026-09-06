@@ -23,7 +23,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -90,6 +91,21 @@ h1 {
   padding: 12px 16px;
 }
 
+.filter-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 10px;
+}
+
+.filter-row label {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
 .library-actions {
   display: flex;
   align-items: center;
@@ -125,7 +141,8 @@ h1 {
   white-space: nowrap;
 }
 
-input {
+input,
+select {
   min-width: 0;
   min-height: 38px;
   border: 1px solid var(--line);
@@ -133,6 +150,10 @@ input {
   padding: 0 11px;
   background: white;
   color: var(--ink);
+}
+
+select {
+  padding: 0 30px 0 10px;
 }
 
 .cards {
@@ -194,6 +215,56 @@ ul {
 .terms {
   color: var(--good);
   font-size: 13px;
+}
+
+.tag-editor {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tag-chip {
+  min-height: 26px;
+  max-width: 180px;
+  padding: 0 7px;
+  border-color: #b9cbbf;
+  background: #edf4ef;
+  color: #285740;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-chip span {
+  color: #64766b;
+}
+
+.tag-editor form {
+  display: grid;
+  grid-template-columns: minmax(0, 112px) 28px;
+  gap: 4px;
+}
+
+.tag-editor input {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.tag-editor form button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
 }
 
 details {
