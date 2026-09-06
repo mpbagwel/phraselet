@@ -8,28 +8,55 @@
     <script src="src/popup.js" defer></script>
   </head>
   <body class="popup-shell">
-    <header class="topbar">
-      <div>
-        <h1>Pausemark</h1>
-        <p id="card-count">No saved phrases yet</p>
+    <header class="topbar popup-topbar">
+      <div class="brand-lockup">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+        <div>
+          <h1>Pausemark</h1>
+          <p id="card-count">No saved phrases yet</p>
+        </div>
       </div>
-      <button id="open-options" class="icon-button" type="button" title="Options" aria-label="Options">...</button>
+      <button id="open-options" class="icon-button" type="button" title="Open settings" aria-label="Open Pausemark settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z"/><path d="M19.4 13.5c.05-.32.1-.66.1-1s-.04-.68-.1-1l2.1-1.64-2-3.46-2.47 1a7.7 7.7 0 0 0-1.73-1L14.92 3h-4l-.38 2.4c-.62.25-1.2.59-1.73 1l-2.47-1-2 3.46 2.1 1.64c-.06.32-.1.66-.1 1s.04.68.1 1l-2.1 1.64 2 3.46 2.47-1c.53.42 1.11.75 1.73 1l.38 2.4h4l.38-2.4c.62-.25 1.2-.58 1.73-1l2.47 1 2-3.46-2.1-1.64Z"/></svg>
+      </button>
     </header>
 
-    <section class="capture-row">
-      <button id="save-selection" class="primary-button" type="button">Save selection</button>
-      <input id="search" type="search" placeholder="Search saved phrases" autocomplete="off">
+    <section class="command-panel" aria-label="Capture and search">
+      <button id="save-selection" class="primary-button capture-button" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Save selection</span>
+        <kbd aria-label="Alt or Option Shift S">Alt/⌥ ⇧ S</kbd>
+      </button>
+      <div class="search-field">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+        <label class="sr-only" for="search">Search saved phrases</label>
+        <input id="search" type="search" placeholder="Search your phrases…" autocomplete="off">
+      </div>
     </section>
 
-    <section class="filter-row">
-      <label for="tag-filter">Tag</label>
-      <select id="tag-filter" aria-label="Filter by tag">
-        <option value="">All tags</option>
-      </select>
-      <button id="manage-tag" class="secondary-button" type="button" disabled>Manage</button>
-    </section>
+    <div class="library-toolbar">
+      <section class="filter-row" aria-label="Filter phrases">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        <label class="sr-only" for="tag-filter">Filter by tag</label>
+        <select id="tag-filter" aria-label="Filter by tag">
+          <option value="">All tags</option>
+        </select>
+        <button id="manage-tag" class="text-button" type="button" disabled aria-expanded="false" aria-controls="tag-manager">Manage</button>
+      </section>
+
+      <section class="library-actions" aria-label="Import and export">
+        <button id="export-cards" class="icon-button small-icon-button" type="button" title="Export phrases" aria-label="Export phrases">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 15v5h14v-5"/></svg>
+        </button>
+        <button id="import-cards" class="icon-button small-icon-button" type="button" title="Import phrases" aria-label="Import phrases">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0 4 4m-4-4L8 8"/><path d="M5 15v5h14v-5"/></svg>
+        </button>
+        <input id="import-file" type="file" accept="application/json,.json" hidden>
+      </section>
+    </div>
 
     <section id="tag-manager" class="tag-manager" hidden>
+      <p class="eyebrow">Manage selected tag</p>
       <form id="tag-manager-form">
         <input id="tag-name" name="tagName" type="text" maxlength="40" aria-label="Tag name" autocomplete="off">
         <button class="secondary-button" type="submit">Rename</button>
@@ -39,12 +66,7 @@
 
     <datalist id="tag-suggestions"></datalist>
 
-    <section class="library-actions">
-      <button id="export-cards" class="secondary-button" type="button">Export</button>
-      <button id="import-cards" class="secondary-button" type="button">Import</button>
-      <input id="import-file" type="file" accept="application/json,.json" hidden>
-      <p id="library-status" class="status-line" role="status"></p>
-    </section>
+    <p id="library-status" class="status-line library-status" role="status" aria-live="polite"></p>
 
     <main id="cards" class="cards" aria-live="polite"></main>
   </body>

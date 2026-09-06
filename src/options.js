@@ -5,11 +5,13 @@ const modelEl = document.querySelector("#model");
 const afterSaveEl = document.querySelector("#after-save");
 const saveEl = document.querySelector("#save-options");
 const clearEl = document.querySelector("#clear-key");
+const toggleKeyEl = document.querySelector("#toggle-key");
 const statusEl = document.querySelector("#status");
 
 document.addEventListener("DOMContentLoaded", loadOptions);
 saveEl.addEventListener("click", saveOptions);
 clearEl.addEventListener("click", clearKey);
+toggleKeyEl.addEventListener("click", toggleKeyVisibility);
 
 async function loadOptions() {
   const settings = await getSettings();
@@ -19,19 +21,25 @@ async function loadOptions() {
 }
 
 async function saveOptions() {
-  await chrome.storage.local.set({
-    [SETTINGS_KEY]: {
-      apiKey: apiKeyEl.value.trim(),
-      model: modelEl.value.trim() || "gpt-4.1-mini",
-      afterSave: normalizeAfterSave(afterSaveEl.value)
-    }
-  });
-  showStatus("Options saved.");
+  saveEl.disabled = true;
+  try {
+    await chrome.storage.local.set({
+      [SETTINGS_KEY]: {
+        apiKey: apiKeyEl.value.trim(),
+        model: modelEl.value.trim() || "gpt-4.1-mini",
+        afterSave: normalizeAfterSave(afterSaveEl.value)
+      }
+    });
+    showStatus("Options saved.");
+  } finally {
+    saveEl.disabled = false;
+  }
 }
 
 async function clearKey() {
   const settings = await getSettings();
   apiKeyEl.value = "";
+  setKeyVisibility(false);
   await chrome.storage.local.set({
     [SETTINGS_KEY]: {
       ...settings,
@@ -39,6 +47,17 @@ async function clearKey() {
     }
   });
   showStatus("API key cleared.");
+}
+
+function toggleKeyVisibility() {
+  setKeyVisibility(apiKeyEl.type === "password");
+}
+
+function setKeyVisibility(isVisible) {
+  apiKeyEl.type = isVisible ? "text" : "password";
+  toggleKeyEl.textContent = isVisible ? "Hide" : "Show";
+  toggleKeyEl.setAttribute("aria-label", `${isVisible ? "Hide" : "Show"} API key`);
+  toggleKeyEl.setAttribute("aria-pressed", String(isVisible));
 }
 
 async function getSettings() {

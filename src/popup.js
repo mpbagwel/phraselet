@@ -42,18 +42,18 @@ async function init() {
 
 saveSelectionEl.addEventListener("click", async () => {
   saveSelectionEl.disabled = true;
-  saveSelectionEl.textContent = "Saving";
+  setCaptureButtonLabel("Saving…");
 
   const result = await chrome.runtime.sendMessage({
     type: "PAUSEMARK_SAVE_ACTIVE_SELECTION"
   });
 
   saveSelectionEl.disabled = false;
-  saveSelectionEl.textContent = result?.ok
+  setCaptureButtonLabel(result?.ok
     ? result.duplicate ? "Already saved" : "Saved"
-    : "Save selection";
+    : "Save selection");
   setTimeout(() => {
-    saveSelectionEl.textContent = "Save selection";
+    setCaptureButtonLabel("Save selection");
   }, 1200);
 });
 
@@ -85,6 +85,11 @@ cardsEl.addEventListener("click", async (event) => {
   }
 
   const { action, id } = button.dataset;
+
+  if (action === "toggle-panel") {
+    toggleCardPanel(button);
+    return;
+  }
 
   if (action === "focus-card") {
     focusCard(id);
@@ -269,45 +274,69 @@ function render() {
 function renderCard(card) {
   const ai = card.ai || {};
   const cardId = escapeAttribute(card.id);
+  const morePanelId = disclosureId(card.id, "more");
+  const relatedPanelId = disclosureId(card.id, "related");
+  const contextPanelId = disclosureId(card.id, "context");
+  const editPanelId = disclosureId(card.id, "edit");
   const status = STATUS_LABELS[ai.status] || "Saved";
+  const statusClass = Object.hasOwn(STATUS_LABELS, ai.status) ? ai.status : "saved";
   const examples = Array.isArray(ai.examples) && ai.examples.length
-    ? `<ul>${ai.examples.map((example) => `<li>${escapeHtml(example)}</li>`).join("")}</ul>`
+    ? `<ul class="examples">${ai.examples.map((example) => `<li>${escapeHtml(example)}</li>`).join("")}</ul>`
     : "";
   const relatedTerms = Array.isArray(ai.relatedTerms) && ai.relatedTerms.length
     ? `<p class="terms">${ai.relatedTerms.map(escapeHtml).join(" / ")}</p>`
     : "";
+  const enrichmentPanel = examples || relatedTerms
+    ? `<div id="${morePanelId}" class="card-disclosure-panel enrichment-details-content" data-panel-id="more" hidden>${examples}${relatedTerms}</div>`
+    : "";
   const source = card.sourceUrl
-    ? `<a href="${escapeAttribute(card.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(card.sourceTitle || hostnameFromUrl(card.sourceUrl))}</a>`
+    ? `<a class="source-link" href="${escapeAttribute(card.sourceUrl)}" target="_blank" rel="noreferrer" title="Open source: ${escapeAttribute(card.sourceTitle || hostnameFromUrl(card.sourceUrl))}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 13v6H5V6h6"/></svg>
+        <span>${escapeHtml(card.sourceTitle || hostnameFromUrl(card.sourceUrl))}</span>
+      </a>`
     : "";
   const tags = renderTags(card, cardId);
   const note = card.note
     ? `<p class="card-note">${escapeHtml(card.note)}</p>`
     : "";
-  const relatedPhrases = renderRelatedPhrases(card);
-  const editor = renderCardEditor(card, cardId);
+  const relatedPhrases = renderRelatedPhrases(card, relatedPanelId);
+  const editor = renderCardEditor(card, cardId, editPanelId);
+  const context = card.contextText
+    ? `<div id="${contextPanelId}" class="card-disclosure-panel source-context" data-panel-id="context" hidden><p>${escapeHtml(card.contextText)}</p></div>`
+    : "";
+  const isKnown = card.status === "known";
 
   return `
-    <article class="phrase-card ${card.status === "known" ? "is-known" : ""}" data-card-id="${cardId}">
+    <article class="phrase-card ${isKnown ? "is-known" : ""}" data-card-id="${cardId}">
       <div class="card-header">
         <h2>${escapeHtml(card.selectedText)}</h2>
-        <span>${escapeHtml(status)}</span>
+        <span class="status-badge status-${statusClass}">${escapeHtml(status)}</span>
       </div>
       ${note}
-      ${ai.summary ? `<p>${escapeHtml(ai.summary)}</p>` : ""}
+      ${ai.summary ? `<p class="card-summary">${escapeHtml(ai.summary)}</p>` : ""}
       ${ai.contextMeaning ? `<p class="context-meaning">${escapeHtml(ai.contextMeaning)}</p>` : ""}
-      ${examples}
-      ${relatedTerms}
       ${tags}
-      ${relatedPhrases}
-      ${card.contextText ? `<details><summary>Source context</summary><p>${escapeHtml(card.contextText)}</p></details>` : ""}
       ${ai.error ? `<p class="error-text">${escapeHtml(ai.error)}</p>` : ""}
-      ${editor}
-      <footer>
+      <div class="card-disclosures">
+        <div class="card-disclosure-controls">
+          ${enrichmentPanel ? renderDisclosureControl("more", "More", morePanelId) : ""}
+          ${relatedPhrases ? renderDisclosureControl("related", `Related (${relatedPhrases.count})`, relatedPanelId) : ""}
+          ${context ? renderDisclosureControl("context", "Context", contextPanelId) : ""}
+          ${renderDisclosureControl("edit", "Edit", editPanelId)}
+        </div>
+        <div class="card-disclosure-panels">
+          ${enrichmentPanel}
+          ${relatedPhrases ? relatedPhrases.panel : ""}
+          ${context}
+          ${editor}
+        </div>
+      </div>
+      <footer class="card-footer">
         <div>${source}</div>
         <div class="card-actions">
           <button data-action="enrich" data-id="${cardId}" type="button">Explain</button>
-          <button data-action="toggle-known" data-id="${cardId}" type="button">${card.status === "known" ? "Learning" : "Known"}</button>
-          <button data-action="delete" data-id="${cardId}" type="button">Delete</button>
+          <button data-action="toggle-known" data-id="${cardId}" type="button" aria-pressed="${isKnown}">${isKnown ? "Learning" : "Known"}</button>
+          <button class="delete-action" data-action="delete" data-id="${cardId}" type="button">Delete</button>
         </div>
       </footer>
     </article>
@@ -331,18 +360,21 @@ function renderTags(card, cardId) {
   return `
     <div class="tag-editor">
       ${tagButtons ? `<div class="tag-list" aria-label="Tags">${tagButtons}</div>` : ""}
-      <form data-action="add-tag" data-id="${cardId}">
-        <input name="tag" type="text" maxlength="40" placeholder="Add tag" aria-label="Add a tag to ${escapeAttribute(card.selectedText)}" list="tag-suggestions" autocomplete="off">
-        <button type="submit" title="Add tag" aria-label="Add tag">+</button>
-      </form>
+      <details class="add-tag-disclosure">
+        <summary>Add tag</summary>
+        <form data-action="add-tag" data-id="${cardId}">
+          <input name="tag" type="text" maxlength="40" placeholder="Tag name" aria-label="Add a tag to ${escapeAttribute(card.selectedText)}" list="tag-suggestions" autocomplete="off">
+          <button type="submit" title="Add tag" aria-label="Add tag">+</button>
+        </form>
+      </details>
     </div>
   `;
 }
 
-function renderRelatedPhrases(card) {
+function renderRelatedPhrases(card, panelId) {
   const relatedCards = findRelatedCards(card);
   if (!relatedCards.length) {
-    return "";
+    return null;
   }
 
   const links = relatedCards.map(({ card: relatedCard, sharedTags }) => `
@@ -352,12 +384,10 @@ function renderRelatedPhrases(card) {
     </button>
   `).join("");
 
-  return `
-    <details class="related-phrases">
-      <summary>Related phrases (${relatedCards.length})</summary>
-      <div class="related-list">${links}</div>
-    </details>
-  `;
+  return {
+    count: relatedCards.length,
+    panel: `<div id="${panelId}" class="card-disclosure-panel related-list" data-panel-id="related" hidden>${links}</div>`
+  };
 }
 
 function findRelatedCards(card) {
@@ -378,10 +408,9 @@ function findRelatedCards(card) {
     .slice(0, 5);
 }
 
-function renderCardEditor(card, cardId) {
+function renderCardEditor(card, cardId, panelId) {
   return `
-    <details class="card-editor">
-      <summary>Edit phrase</summary>
+    <div id="${panelId}" class="card-editor card-disclosure-panel" data-panel-id="edit" hidden>
       <form data-action="edit-card" data-id="${cardId}">
         <label>
           <span>Phrase</span>
@@ -401,8 +430,36 @@ function renderCardEditor(card, cardId) {
         </label>
         <button class="primary-button" type="submit">Save changes</button>
       </form>
-    </details>
+    </div>
   `;
+}
+
+function renderDisclosureControl(panel, label, panelId) {
+  return `
+    <button data-action="toggle-panel" data-panel="${panel}" type="button" aria-expanded="false" aria-controls="${panelId}">
+      <span class="disclosure-symbol" aria-hidden="true">+</span>${label}
+    </button>
+  `;
+}
+
+function disclosureId(cardId, panel) {
+  const token = String(cardId).replace(/[^a-zA-Z0-9_-]/g, "-");
+  return `card-${token}-${panel}`;
+}
+
+function toggleCardPanel(button) {
+  const cardEl = button.closest("[data-card-id]");
+  const panelEl = [...cardEl.querySelectorAll("[data-panel-id]")]
+    .find((candidate) => candidate.dataset.panelId === button.dataset.panel);
+
+  if (!panelEl) {
+    return;
+  }
+
+  const isOpen = panelEl.hidden;
+  panelEl.hidden = !isOpen;
+  button.setAttribute("aria-expanded", String(isOpen));
+  button.querySelector(".disclosure-symbol").textContent = isOpen ? "−" : "+";
 }
 
 function emptyState(query, selectedTag) {
@@ -453,6 +510,7 @@ function toggleTagManager() {
 
   tagManagerEl.hidden = !tagManagerEl.hidden;
   manageTagEl.textContent = tagManagerEl.hidden ? "Manage" : "Close";
+  manageTagEl.setAttribute("aria-expanded", String(!tagManagerEl.hidden));
 
   if (!tagManagerEl.hidden) {
     tagNameEl.value = tagFilterEl.value;
@@ -464,6 +522,7 @@ function toggleTagManager() {
 function closeTagManager() {
   tagManagerEl.hidden = true;
   manageTagEl.textContent = "Manage";
+  manageTagEl.setAttribute("aria-expanded", "false");
 }
 
 async function renameSelectedTag(event) {
@@ -726,6 +785,13 @@ function showLibraryStatus(message, isError = false) {
       libraryStatusEl.classList.remove("is-error");
     }
   }, 2200);
+}
+
+function setCaptureButtonLabel(label) {
+  const labelEl = saveSelectionEl.querySelector("span");
+  if (labelEl) {
+    labelEl.textContent = label;
+  }
 }
 
 function phraseCount(count) {
