@@ -1,4 +1,4 @@
-const ONBOARDING_KEY = "pausemark.onboarding";
+const ONBOARDING_KEY = "phraselet.onboarding";
 
 const finishEl = document.querySelector("#onboarding-finish");
 const settingsEl = document.querySelector("#onboarding-settings");

@@ -13,13 +13,21 @@ function loadBackground({
   injectedResult = null,
   injectionError = null,
   initialCards = null,
-  initialSettings = null
+  initialSettings = null,
+  legacyCards = null,
+  legacySettings = null
 } = {}) {
   const localStorage = initialCards
-    ? { "pausemark.cards": structuredClone(initialCards) }
+    ? { "phraselet.cards": structuredClone(initialCards) }
     : {};
   if (initialSettings) {
-    localStorage["pausemark.settings"] = structuredClone(initialSettings);
+    localStorage["phraselet.settings"] = structuredClone(initialSettings);
+  }
+  if (legacyCards) {
+    localStorage["pausemark.cards"] = structuredClone(legacyCards);
+  }
+  if (legacySettings) {
+    localStorage["pausemark.settings"] = structuredClone(legacySettings);
   }
   const sessionStorage = {};
   const badgeTexts = [];
@@ -30,11 +38,16 @@ function loadBackground({
   let runtimeMessageHandler;
 
   const storageArea = (state) => ({
-    async get(key) {
-      return { [key]: state[key] };
+    async get(keys) {
+      const requestedKeys = Array.isArray(keys) ? keys : [keys];
+      return Object.fromEntries(requestedKeys.map((key) => [key, state[key]]));
     },
     async set(values) {
       Object.assign(state, values);
+    },
+    async remove(keys) {
+      const removedKeys = Array.isArray(keys) ? keys : [keys];
+      removedKeys.forEach((key) => delete state[key]);
     },
     async setAccessLevel(options) {
       storageAccessLevels.push(options);
@@ -62,7 +75,7 @@ function loadBackground({
     },
     runtime: {
       getURL(pathname) {
-        return `chrome-extension://pausemark/${pathname}`;
+        return `chrome-extension://phraselet/${pathname}`;
       },
       onInstalled: {
         addListener(listener) {
@@ -126,7 +139,7 @@ function loadBackground({
 
 function captureFromPopup(runtimeMessageHandler) {
   return sendRuntimeMessage(runtimeMessageHandler, {
-    type: "PAUSEMARK_SAVE_ACTIVE_SELECTION"
+    type: "PHRASELET_SAVE_ACTIVE_SELECTION"
   });
 }
 
@@ -158,12 +171,12 @@ test("shortcut captures through script injection when a reloaded extension has n
     url: "https://example.com/article",
     windowId: 2
   });
-  for (let attempts = 0; attempts < 10 && !localStorage["pausemark.cards"]; attempts += 1) {
+  for (let attempts = 0; attempts < 10 && !localStorage["phraselet.cards"]; attempts += 1) {
     await new Promise(setImmediate);
   }
 
-  assert.equal(localStorage["pausemark.cards"].length, 1);
-  assert.equal(localStorage["pausemark.cards"][0].selectedText, selectedText);
+  assert.equal(localStorage["phraselet.cards"].length, 1);
+  assert.equal(localStorage["phraselet.cards"][0].selectedText, selectedText);
   assert.ok(badgeTexts.includes("1"));
   assert.ok(!badgeTexts.includes("!"));
 });
@@ -177,11 +190,13 @@ test("returns the selection error when neither messaging nor injection is availa
 
   assert.equal(result.ok, false);
   assert.equal(result.error, "Select a word or phrase first.");
-  assert.equal(localStorage["pausemark.cards"], undefined);
+  assert.equal(localStorage["phraselet.cards"], undefined);
 });
 
 test("declares the scripting permission needed by the fallback", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "manifest.json"), "utf8"));
+  assert.equal(manifest.name, "Phraselet");
+  assert.equal(manifest.action.default_title, "Phraselet");
   assert.ok(manifest.permissions.includes("scripting"));
   assert.equal(manifest.content_scripts, undefined);
   assert.equal(manifest.minimum_chrome_version, "102");
@@ -198,7 +213,7 @@ test("limits captured page data before saving it", async () => {
   });
 
   const result = await captureFromPopup(runtimeMessageHandler);
-  const [card] = localStorage["pausemark.cards"];
+  const [card] = localStorage["phraselet.cards"];
 
   assert.equal(result.ok, true);
   assert.equal(card.selectedText.length, 500);
@@ -227,8 +242,8 @@ test("refuses new captures after the library card limit", async () => {
   const result = await captureFromPopup(runtimeMessageHandler);
 
   assert.equal(result.ok, false);
-  assert.equal(result.error, "Pausemark can store up to 5000 phrases.");
-  assert.equal(localStorage["pausemark.cards"].length, 5000);
+  assert.equal(result.error, "Phraselet can store up to 5000 phrases.");
+  assert.equal(localStorage["phraselet.cards"].length, 5000);
 });
 
 test("restricts local extension storage to trusted contexts", async () => {
@@ -241,6 +256,21 @@ test("restricts local extension storage to trusted contexts", async () => {
   );
 });
 
+test("migrates saved Pausemark data to Phraselet storage keys", async () => {
+  const legacyCards = [{ id: "legacy", selectedText: "Keep this", tags: [] }];
+  const legacySettings = { apiKey: "legacy-key", afterSave: "open_popup" };
+  const { localStorage } = loadBackground({ legacyCards, legacySettings });
+
+  for (let attempts = 0; attempts < 10 && !localStorage["phraselet.cards"]; attempts += 1) {
+    await new Promise(setImmediate);
+  }
+
+  assert.deepEqual(localStorage["phraselet.cards"], legacyCards);
+  assert.deepEqual(localStorage["phraselet.settings"], legacySettings);
+  assert.equal(localStorage["pausemark.cards"], undefined);
+  assert.equal(localStorage["pausemark.settings"], undefined);
+});
+
 test("opens onboarding on first install but not on extension updates", async () => {
   const { createdTabs, installedHandler } = loadBackground();
 
@@ -249,7 +279,7 @@ test("opens onboarding on first install but not on extension updates", async () 
   await new Promise(setImmediate);
 
   assert.equal(createdTabs.length, 1);
-  assert.equal(createdTabs[0].url, "chrome-extension://pausemark/onboarding.html");
+  assert.equal(createdTabs[0].url, "chrome-extension://phraselet/onboarding.html");
 });
 
 test("applies bulk tagging and status changes in one storage mutation", async () => {
@@ -261,38 +291,38 @@ test("applies bulk tagging and status changes in one storage mutation", async ()
   const { localStorage, runtimeMessageHandler } = loadBackground({ initialCards });
 
   const tagResult = await sendRuntimeMessage(runtimeMessageHandler, {
-    type: "PAUSEMARK_BULK_UPDATE_CARDS",
+    type: "PHRASELET_BULK_UPDATE_CARDS",
     operation: "add_tag",
     cardIds: ["one", "two"],
     tag: "Review"
   });
   assert.equal(tagResult.ok, true);
   assert.equal(tagResult.changed, 2);
-  assert.deepEqual(Array.from(localStorage["pausemark.cards"][0].tags), ["work", "Review"]);
-  assert.deepEqual(Array.from(localStorage["pausemark.cards"][1].tags), ["Review"]);
-  assert.deepEqual(Array.from(localStorage["pausemark.cards"][2].tags), []);
+  assert.deepEqual(Array.from(localStorage["phraselet.cards"][0].tags), ["work", "Review"]);
+  assert.deepEqual(Array.from(localStorage["phraselet.cards"][1].tags), ["Review"]);
+  assert.deepEqual(Array.from(localStorage["phraselet.cards"][2].tags), []);
 
   const removeTagResult = await sendRuntimeMessage(runtimeMessageHandler, {
-    type: "PAUSEMARK_BULK_UPDATE_CARDS",
+    type: "PHRASELET_BULK_UPDATE_CARDS",
     operation: "remove_tag",
     cardIds: ["one"],
     tag: "review"
   });
   assert.equal(removeTagResult.ok, true);
   assert.equal(removeTagResult.changed, 1);
-  assert.deepEqual(Array.from(localStorage["pausemark.cards"][0].tags), ["work"]);
-  assert.deepEqual(Array.from(localStorage["pausemark.cards"][1].tags), ["Review"]);
+  assert.deepEqual(Array.from(localStorage["phraselet.cards"][0].tags), ["work"]);
+  assert.deepEqual(Array.from(localStorage["phraselet.cards"][1].tags), ["Review"]);
 
   const statusResult = await sendRuntimeMessage(runtimeMessageHandler, {
-    type: "PAUSEMARK_BULK_UPDATE_CARDS",
+    type: "PHRASELET_BULK_UPDATE_CARDS",
     operation: "mark_known",
     cardIds: ["one", "two"]
   });
   assert.equal(statusResult.ok, true);
   assert.equal(statusResult.changed, 2);
-  assert.equal(localStorage["pausemark.cards"][0].status, "known");
-  assert.equal(localStorage["pausemark.cards"][1].status, "known");
-  assert.equal(localStorage["pausemark.cards"][2].status, "learning");
+  assert.equal(localStorage["phraselet.cards"][0].status, "known");
+  assert.equal(localStorage["phraselet.cards"][1].status, "known");
+  assert.equal(localStorage["phraselet.cards"][2].status, "learning");
 });
 
 test("bulk delete removes only selected cards", async () => {
@@ -304,14 +334,14 @@ test("bulk delete removes only selected cards", async () => {
   const { localStorage, runtimeMessageHandler } = loadBackground({ initialCards });
 
   const result = await sendRuntimeMessage(runtimeMessageHandler, {
-    type: "PAUSEMARK_BULK_UPDATE_CARDS",
+    type: "PHRASELET_BULK_UPDATE_CARDS",
     operation: "delete",
     cardIds: ["one", "three"]
   });
 
   assert.equal(result.ok, true);
   assert.equal(result.changed, 2);
-  assert.deepEqual(Array.from(localStorage["pausemark.cards"], (card) => card.id), ["two"]);
+  assert.deepEqual(Array.from(localStorage["phraselet.cards"], (card) => card.id), ["two"]);
 });
 
 test("bulk tags survive an AI explanation that completes later", async () => {
@@ -334,13 +364,13 @@ test("bulk tags survive an AI explanation that completes later", async () => {
   });
 
   const enrichment = sendRuntimeMessage(runtimeMessageHandler, {
-    type: "PAUSEMARK_ENRICH_CARD",
+    type: "PHRASELET_ENRICH_CARD",
     cardId: "one"
   });
   await new Promise(setImmediate);
 
   await sendRuntimeMessage(runtimeMessageHandler, {
-    type: "PAUSEMARK_BULK_UPDATE_CARDS",
+    type: "PHRASELET_BULK_UPDATE_CARDS",
     operation: "add_tag",
     cardIds: ["one"],
     tag: "Keep me"
@@ -362,8 +392,8 @@ test("bulk tags survive an AI explanation that completes later", async () => {
   const result = await enrichment;
 
   assert.equal(result.ok, true);
-  assert.deepEqual(Array.from(localStorage["pausemark.cards"][0].tags), ["Keep me"]);
-  assert.equal(localStorage["pausemark.cards"][0].ai.status, "enriched");
+  assert.deepEqual(Array.from(localStorage["phraselet.cards"][0].tags), ["Keep me"]);
+  assert.equal(localStorage["phraselet.cards"][0].ai.status, "enriched");
 });
 
 test("sends bounded, non-stored structured OpenAI requests", async () => {
@@ -405,7 +435,7 @@ test("sends bounded, non-stored structured OpenAI requests", async () => {
   });
 
   const result = await sendRuntimeMessage(runtimeMessageHandler, {
-    type: "PAUSEMARK_ENRICH_CARD",
+    type: "PHRASELET_ENRICH_CARD",
     cardId: "one"
   });
   const request = JSON.parse(capturedOptions.body);
@@ -443,7 +473,7 @@ test("does not expose OpenAI error response bodies", async () => {
   });
 
   const result = await sendRuntimeMessage(runtimeMessageHandler, {
-    type: "PAUSEMARK_ENRICH_CARD",
+    type: "PHRASELET_ENRICH_CARD",
     cardId: "one"
   });
 

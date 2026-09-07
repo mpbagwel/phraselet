@@ -3,9 +3,9 @@ set -eu
 
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 output_dir="$project_dir/dist"
-staging_dir="$output_dir/pausemark"
+staging_dir="$output_dir/phraselet"
 version=$(node -p "require('$project_dir/manifest.json').version")
-archive="$output_dir/pausemark-$version.zip"
+archive="$output_dir/phraselet-$version.zip"
 
 rm -rf "$staging_dir"
 rm -f "$archive"

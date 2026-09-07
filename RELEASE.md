@@ -1,4 +1,4 @@
-# Pausemark Release Checklist
+# Phraselet Release Checklist
 
 ## Required before Chrome Web Store submission
 
@@ -16,7 +16,7 @@
 
 ## Release package
 
-`npm run package` creates `dist/pausemark-<version>.zip` with only these runtime files and directories:
+`npm run package` creates `dist/phraselet-<version>.zip` with only these runtime files and directories:
 
 - `manifest.json`
 - `popup.html`, `options.html`, and `onboarding.html`

@@ -1,4 +1,4 @@
-const SETTINGS_KEY = "pausemark.settings";
+const SETTINGS_KEY = "phraselet.settings";
 
 const apiKeyEl = document.querySelector("#api-key");
 const modelEl = document.querySelector("#model");

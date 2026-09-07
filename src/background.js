@@ -1,6 +1,10 @@
-const MENU_ID = "pausemark-save-selection";
-const CARDS_KEY = "pausemark.cards";
-const SETTINGS_KEY = "pausemark.settings";
+const MENU_ID = "phraselet-save-selection";
+const CARDS_KEY = "phraselet.cards";
+const SETTINGS_KEY = "phraselet.settings";
+const ONBOARDING_KEY = "phraselet.onboarding";
+const LEGACY_CARDS_KEY = "pausemark.cards";
+const LEGACY_SETTINGS_KEY = "pausemark.settings";
+const LEGACY_ONBOARDING_KEY = "pausemark.onboarding";
 const MAX_PHRASE_LENGTH = 500;
 const MAX_CONTEXT_LENGTH = 1200;
 const MAX_TITLE_LENGTH = 300;
@@ -11,6 +15,7 @@ const MAX_LIBRARY_CARDS = 5000;
 const MAX_LIBRARY_BYTES = 8 * 1024 * 1024;
 const OPENAI_TIMEOUT_MS = 30 * 1000;
 let cardsMutationQueue = Promise.resolve();
+const storageMigrationPromise = migrateLegacyStorage();
 
 chrome.storage.local.setAccessLevel({
   accessLevel: "TRUSTED_CONTEXTS"
@@ -19,7 +24,7 @@ chrome.storage.local.setAccessLevel({
 chrome.runtime.onInstalled.addListener((details) => {
   chrome.contextMenus.create({
     id: MENU_ID,
-    title: "Save to Pausemark",
+    title: "Save to Phraselet",
     contexts: ["selection"]
   });
 
@@ -53,17 +58,17 @@ chrome.commands.onCommand.addListener((command, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type === "PAUSEMARK_SAVE_ACTIVE_SELECTION") {
+  if (message?.type === "PHRASELET_SAVE_ACTIVE_SELECTION") {
     respondToMessage(handlePopupCapture(), sendResponse);
     return true;
   }
 
-  if (message?.type === "PAUSEMARK_ENRICH_CARD") {
+  if (message?.type === "PHRASELET_ENRICH_CARD") {
     respondToMessage(enrichExistingCard(message.cardId), sendResponse);
     return true;
   }
 
-  if (message?.type === "PAUSEMARK_BULK_UPDATE_CARDS") {
+  if (message?.type === "PHRASELET_BULK_UPDATE_CARDS") {
     respondToMessage(bulkUpdateCards(message), sendResponse);
     return true;
   }
@@ -76,7 +81,7 @@ function respondToMessage(operation, sendResponse) {
     .then(sendResponse)
     .catch((error) => sendResponse({
       ok: false,
-      error: error instanceof Error ? error.message : "Pausemark could not complete that action."
+      error: error instanceof Error ? error.message : "Phraselet could not complete that action."
     }));
 }
 
@@ -120,7 +125,7 @@ async function saveSelectionWithFeedback(tabId, fallback) {
 
   const settings = await getSettings();
   const openedPopup = settings.afterSave === "open_popup"
-    && await openPausemarkPopup(fallback.windowId);
+    && await openPhraseletPopup(fallback.windowId);
 
   if (!openedPopup) {
     await showCaptureToast(tabId, result, fallback.frameId);
@@ -129,7 +134,7 @@ async function saveSelectionWithFeedback(tabId, fallback) {
   return result;
 }
 
-async function openPausemarkPopup(windowId) {
+async function openPhraseletPopup(windowId) {
   if (typeof chrome.action.openPopup !== "function") {
     return false;
   }
@@ -320,7 +325,7 @@ function readSelectionFromPage() {
 }
 
 function displayCaptureToast(message, tone) {
-  const hostId = "pausemark-toast-host";
+  const hostId = "phraselet-toast-host";
   let host = document.getElementById(hostId);
 
   if (!host) {
@@ -361,8 +366,8 @@ function displayCaptureToast(message, tone) {
   toast.dataset.tone = tone === "error" ? "error" : "success";
   toast.dataset.visible = "true";
 
-  clearTimeout(host.__pausemarkToastTimer);
-  host.__pausemarkToastTimer = setTimeout(() => {
+  clearTimeout(host.__phraseletToastTimer);
+  host.__phraseletToastTimer = setTimeout(() => {
     toast.dataset.visible = "false";
   }, 2200);
 }
@@ -493,7 +498,7 @@ async function requestExplanation(card, settings) {
         text: {
           format: {
             type: "json_schema",
-            name: "pausemark_explanation",
+            name: "phraselet_explanation",
             strict: true,
             schema: {
               type: "object",
@@ -698,8 +703,37 @@ function normalizeCardTags(tags) {
 }
 
 async function getCards() {
+  await storageMigrationPromise;
   const result = await chrome.storage.local.get(CARDS_KEY);
   return Array.isArray(result[CARDS_KEY]) ? result[CARDS_KEY] : [];
+}
+
+async function migrateLegacyStorage() {
+  const [cards, settings, onboarding] = await Promise.all([
+    chrome.storage.local.get([CARDS_KEY, LEGACY_CARDS_KEY]),
+    chrome.storage.local.get([SETTINGS_KEY, LEGACY_SETTINGS_KEY]),
+    chrome.storage.local.get([ONBOARDING_KEY, LEGACY_ONBOARDING_KEY])
+  ]);
+  const updates = {};
+
+  if (cards[CARDS_KEY] === undefined && cards[LEGACY_CARDS_KEY] !== undefined) {
+    updates[CARDS_KEY] = cards[LEGACY_CARDS_KEY];
+  }
+  if (settings[SETTINGS_KEY] === undefined && settings[LEGACY_SETTINGS_KEY] !== undefined) {
+    updates[SETTINGS_KEY] = settings[LEGACY_SETTINGS_KEY];
+  }
+  if (onboarding[ONBOARDING_KEY] === undefined && onboarding[LEGACY_ONBOARDING_KEY] !== undefined) {
+    updates[ONBOARDING_KEY] = onboarding[LEGACY_ONBOARDING_KEY];
+  }
+
+  if (Object.keys(updates).length) {
+    await chrome.storage.local.set(updates);
+  }
+  await chrome.storage.local.remove([
+    LEGACY_CARDS_KEY,
+    LEGACY_SETTINGS_KEY,
+    LEGACY_ONBOARDING_KEY
+  ]);
 }
 
 async function upsertCard(card) {
@@ -745,17 +779,18 @@ function mutateCards(mutator) {
 
 function assertLibraryWithinLimits(nextCards, currentCards) {
   if (nextCards.length > MAX_LIBRARY_CARDS && nextCards.length >= currentCards.length) {
-    throw new Error(`Pausemark can store up to ${MAX_LIBRARY_CARDS} phrases.`);
+    throw new Error(`Phraselet can store up to ${MAX_LIBRARY_CARDS} phrases.`);
   }
 
   const nextBytes = new TextEncoder().encode(JSON.stringify(nextCards)).byteLength;
   const currentBytes = new TextEncoder().encode(JSON.stringify(currentCards)).byteLength;
   if (nextBytes > MAX_LIBRARY_BYTES && nextBytes >= currentBytes) {
-    throw new Error("Pausemark's local library is full. Export or delete phrases before adding more.");
+    throw new Error("Phraselet's local library is full. Export or delete phrases before adding more.");
   }
 }
 
 async function getSettings() {
+  await storageMigrationPromise;
   const result = await chrome.storage.local.get(SETTINGS_KEY);
   return {
     apiKey: "",

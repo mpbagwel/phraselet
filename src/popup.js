@@ -1,4 +1,4 @@
-const CARDS_KEY = "pausemark.cards";
+const CARDS_KEY = "phraselet.cards";
 const IMPORT_SCHEMA_VERSION = 1;
 const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_IMPORT_CARDS = 5000;
@@ -80,7 +80,7 @@ saveSelectionEl.addEventListener("click", async () => {
 
   try {
     const result = await chrome.runtime.sendMessage({
-      type: "PAUSEMARK_SAVE_ACTIVE_SELECTION"
+      type: "PHRASELET_SAVE_ACTIVE_SELECTION"
     });
 
     setCaptureButtonLabel(result?.ok
@@ -91,7 +91,7 @@ saveSelectionEl.addEventListener("click", async () => {
     }
   } catch {
     setCaptureButtonLabel("Save selection");
-    showLibraryStatus("Could not reach Pausemark. Reload the extension and try again.", true);
+    showLibraryStatus("Could not reach Phraselet. Reload the extension and try again.", true);
   } finally {
     saveSelectionEl.disabled = false;
     setTimeout(() => {
@@ -176,7 +176,7 @@ cardsEl.addEventListener("click", async (event) => {
     button.disabled = true;
     button.textContent = "Working";
     await chrome.runtime.sendMessage({
-      type: "PAUSEMARK_ENRICH_CARD",
+      type: "PHRASELET_ENRICH_CARD",
       cardId: id
     });
   }
@@ -279,7 +279,7 @@ async function saveCardEdits(form) {
 
   if (explanationChanged) {
     chrome.runtime.sendMessage({
-      type: "PAUSEMARK_ENRICH_CARD",
+      type: "PHRASELET_ENRICH_CARD",
       cardId: card.id
     }).catch(() => undefined);
   }
@@ -322,7 +322,7 @@ async function applyBulkAction(operation) {
   setBulkControlsDisabled(true);
   try {
     const result = await chrome.runtime.sendMessage({
-      type: "PAUSEMARK_BULK_UPDATE_CARDS",
+      type: "PHRASELET_BULK_UPDATE_CARDS",
       operation,
       cardIds: [...selectedCardIds],
       tag
@@ -362,7 +362,7 @@ async function deleteSelectedCards() {
   setBulkControlsDisabled(true);
   try {
     const result = await chrome.runtime.sendMessage({
-      type: "PAUSEMARK_BULK_UPDATE_CARDS",
+      type: "PHRASELET_BULK_UPDATE_CARDS",
       operation: "delete",
       cardIds: [...selectedCardIds]
     });
@@ -694,7 +694,7 @@ function emptyState(query, selectedTag) {
   return `
     <section class="empty-state">
       <h2>${filtered ? "No matches" : "Save what made you pause."}</h2>
-      <p>${filtered ? "Try a different search or tag." : "Highlight text on a page, press Alt/Option+Shift+S, or right-click and choose Save to Pausemark."}</p>
+      <p>${filtered ? "Try a different search or tag." : "Highlight text on a page, press Alt/Option+Shift+S, or right-click and choose Save to Phraselet."}</p>
     </section>
   `;
 }
@@ -833,7 +833,7 @@ function exportCards() {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `pausemark-export-${dateStamp()}.json`;
+  anchor.download = `phraselet-export-${dateStamp()}.json`;
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
@@ -864,20 +864,20 @@ async function importCards() {
     );
 
     if (!normalizedCards.length) {
-      showLibraryStatus("No valid Pausemark phrases found.", true);
+      showLibraryStatus("No valid Phraselet phrases found.", true);
       return;
     }
 
     const importResult = mergeImportedCards(normalizedCards, cards);
     if (importResult.cards.length > MAX_IMPORT_CARDS) {
-      throw new Error(`Pausemark can store up to ${MAX_IMPORT_CARDS} phrases.`);
+      throw new Error(`Phraselet can store up to ${MAX_IMPORT_CARDS} phrases.`);
     }
 
     await saveCards(importResult.cards);
     showLibraryStatus(formatImportStatus(importResult));
   } catch (error) {
     const message = error instanceof SyntaxError
-      ? "Import failed. Choose a valid Pausemark JSON file."
+      ? "Import failed. Choose a valid Phraselet JSON file."
       : error instanceof Error ? error.message : "Import failed.";
     showLibraryStatus(message, true);
   }
@@ -886,7 +886,7 @@ async function importCards() {
 async function saveCards(nextCards) {
   const byteLength = new TextEncoder().encode(JSON.stringify(nextCards)).byteLength;
   if (byteLength > MAX_LIBRARY_BYTES && byteLength >= libraryByteLength(cards)) {
-    throw new Error("Pausemark's local library is full. Export or delete phrases before adding more.");
+    throw new Error("Phraselet's local library is full. Export or delete phrases before adding more.");
   }
   await chrome.storage.local.set({ [CARDS_KEY]: nextCards });
 }
@@ -901,14 +901,14 @@ function extractImportCards(payload) {
   }
 
   if (payload && typeof payload === "object" && payload.schemaVersion !== IMPORT_SCHEMA_VERSION) {
-    throw new Error("This Pausemark export version is not supported.");
+    throw new Error("This Phraselet export version is not supported.");
   }
 
   if (Array.isArray(payload?.cards)) {
     return payload.cards;
   }
 
-  throw new Error("No Pausemark phrases were found in that file.");
+  throw new Error("No Phraselet phrases were found in that file.");
 }
 
 function normalizeImportedCard(card) {
