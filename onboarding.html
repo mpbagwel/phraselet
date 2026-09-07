@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Welcome to Phraselet</title>
     <link rel="stylesheet" href="src/shared.css">
-    <script src="src/onboarding.js" defer></script>
+    <script src="src/onboarding.js" type="module"></script>
   </head>
   <body class="onboarding-shell">
     <header class="options-topbar">
@@ -47,8 +47,8 @@
           <li>
             <span class="section-number">03</span>
             <div>
-              <h2>Explain when you want</h2>
-              <p>AI explanations are optional. Add your own OpenAI API key in Settings if you want contextual definitions and examples.</p>
+              <h2 id="onboarding-third-title">Keep control</h2>
+              <p id="onboarding-third-copy">Your library stays on this device, and you can export or import it whenever you want a portable backup.</p>
             </div>
           </li>
         </ol>
@@ -56,8 +56,8 @@
         <aside class="privacy-note" aria-labelledby="privacy-title">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.9 8.5 7 10 4.1-1.5 7-5.4 7-10V6l-7-3Z"/><path d="m9.5 12 1.7 1.7 3.6-4"/></svg>
           <div>
-            <h2 id="privacy-title">Your data and AI</h2>
-            <p>Saved phrases, nearby context, page titles, URLs, notes, tags, and your optional API key are stored in Chrome on this device. Phraselet accesses a page only when you save a selection. When AI explanations are enabled, the phrase, nearby context, page title, and site hostname are sent to OpenAI without asking OpenAI to retain the generated response.</p>
+            <h2 id="privacy-title">Your data stays local</h2>
+            <p id="privacy-copy">Saved phrases, nearby context, page titles, URLs, notes, and tags are stored in Chrome on this device. Phraselet accesses a page only when you explicitly save a selection and does not send your library to a third party.</p>
           </div>
         </aside>
 

@@ -7,6 +7,7 @@ const { webcrypto } = require("node:crypto");
 
 const projectRoot = path.resolve(__dirname, "..");
 const backgroundSource = fs.readFileSync(path.join(projectRoot, "src/background.js"), "utf8");
+const openAiSource = fs.readFileSync(path.join(projectRoot, "src/enrichment/openai.js"), "utf8");
 
 function loadBackground({
   fetchImplementation = fetch,
@@ -15,7 +16,8 @@ function loadBackground({
   initialCards = null,
   initialSettings = null,
   legacyCards = null,
-  legacySettings = null
+  legacySettings = null,
+  aiEnrichment = true
 } = {}) {
   const localStorage = initialCards
     ? { "phraselet.cards": structuredClone(initialCards) }
@@ -113,7 +115,7 @@ function loadBackground({
     }
   };
 
-  vm.runInNewContext(backgroundSource, {
+  const context = vm.createContext({
     chrome,
     console,
     crypto: webcrypto,
@@ -123,7 +125,17 @@ function loadBackground({
     setTimeout,
     TextEncoder,
     URL
-  }, { filename: "src/background.js" });
+  });
+  const providerSource = `(function () {\n${openAiSource.replace(
+    "export async function requestExplanation",
+    "async function requestExplanation"
+  )}\nglobalThis.__requestExplanation = requestExplanation;\n})();`;
+  const runnableBackgroundSource = backgroundSource.replace(
+    'import { FEATURES, loadEnrichmentProvider } from "./features.js";',
+    `const FEATURES = Object.freeze({ aiEnrichment: ${aiEnrichment} });\nconst loadEnrichmentProvider = async () => FEATURES.aiEnrichment ? ({ requestExplanation: globalThis.__requestExplanation }) : null;`
+  );
+  vm.runInContext(providerSource, context, { filename: "src/enrichment/openai.js" });
+  vm.runInContext(runnableBackgroundSource, context, { filename: "src/background.js" });
 
   return {
     badgeTexts,
@@ -200,6 +212,51 @@ test("declares the scripting permission needed by the fallback", () => {
   assert.ok(manifest.permissions.includes("scripting"));
   assert.equal(manifest.content_scripts, undefined);
   assert.equal(manifest.minimum_chrome_version, "102");
+});
+
+test("base build does not register enrichment or auto-enrich new cards", async () => {
+  const { localStorage, runtimeMessageHandler } = loadBackground({
+    aiEnrichment: false,
+    injectedResult: {
+      selectedText: "A local phrase",
+      contextText: "A local phrase in context.",
+      sourceTitle: "Example",
+      sourceUrl: "https://example.com"
+    }
+  });
+
+  const captureResult = await captureFromPopup(runtimeMessageHandler);
+  let enrichmentResponded = false;
+  const keepsChannelOpen = runtimeMessageHandler(
+    { type: "PHRASELET_ENRICH_CARD", cardId: captureResult.cardId },
+    {},
+    () => {
+      enrichmentResponded = true;
+    }
+  );
+  await new Promise(setImmediate);
+
+  assert.equal(captureResult.ok, true);
+  assert.equal(localStorage["phraselet.cards"][0].ai.status, "not_requested");
+  assert.equal(keepsChannelOpen, false);
+  assert.equal(enrichmentResponded, false);
+});
+
+test("base build removes stored AI credentials while retaining core settings", async () => {
+  const { localStorage } = loadBackground({
+    aiEnrichment: false,
+    initialSettings: {
+      apiKey: "remove-me",
+      model: "test-model",
+      afterSave: "open_popup"
+    }
+  });
+  await new Promise(setImmediate);
+
+  assert.deepEqual(
+    structuredClone(localStorage["phraselet.settings"]),
+    { afterSave: "open_popup" }
+  );
 });
 
 test("limits captured page data before saving it", async () => {

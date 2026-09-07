@@ -1,3 +1,5 @@
+import { FEATURES } from "./features.js";
+
 const CARDS_KEY = "phraselet.cards";
 const IMPORT_SCHEMA_VERSION = 1;
 const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
@@ -172,7 +174,7 @@ cardsEl.addEventListener("click", async (event) => {
     }
   }
 
-  if (action === "enrich") {
+  if (FEATURES.aiEnrichment && action === "enrich") {
     button.disabled = true;
     button.textContent = "Working";
     await chrome.runtime.sendMessage({
@@ -277,7 +279,7 @@ async function saveCardEdits(form) {
   await upsertCard(updatedCard);
   showLibraryStatus("Saved changes.");
 
-  if (explanationChanged) {
+  if (FEATURES.aiEnrichment && explanationChanged) {
     chrome.runtime.sendMessage({
       type: "PHRASELET_ENRICH_CARD",
       cardId: card.id
@@ -445,8 +447,7 @@ function getVisibleCards(
       card.selectedText,
       card.contextText,
       card.sourceTitle,
-      card.ai?.summary,
-      card.ai?.contextMeaning,
+      ...(FEATURES.aiEnrichment ? [card.ai?.summary, card.ai?.contextMeaning] : []),
       ...tags
     ].join(" ").toLowerCase();
     const matchesTag = !selectedTag
@@ -493,12 +494,17 @@ function renderCard(card) {
   const relatedPanelId = disclosureId(card.id, "related");
   const contextPanelId = disclosureId(card.id, "context");
   const editPanelId = disclosureId(card.id, "edit");
-  const status = STATUS_LABELS[ai.status] || "Saved";
-  const statusClass = Object.hasOwn(STATUS_LABELS, ai.status) ? ai.status : "saved";
-  const examples = Array.isArray(ai.examples) && ai.examples.length
+  const isKnown = card.status === "known";
+  const status = FEATURES.aiEnrichment
+    ? STATUS_LABELS[ai.status] || (isKnown ? "Known" : "Learning")
+    : isKnown ? "Known" : "Learning";
+  const statusClass = FEATURES.aiEnrichment && Object.hasOwn(STATUS_LABELS, ai.status)
+    ? ai.status
+    : isKnown ? "known" : "learning";
+  const examples = FEATURES.aiEnrichment && Array.isArray(ai.examples) && ai.examples.length
     ? `<ul class="examples">${ai.examples.map((example) => `<li>${escapeHtml(example)}</li>`).join("")}</ul>`
     : "";
-  const relatedTerms = Array.isArray(ai.relatedTerms) && ai.relatedTerms.length
+  const relatedTerms = FEATURES.aiEnrichment && Array.isArray(ai.relatedTerms) && ai.relatedTerms.length
     ? `<p class="terms">${ai.relatedTerms.map(escapeHtml).join(" / ")}</p>`
     : "";
   const enrichmentPanel = examples || relatedTerms
@@ -521,7 +527,6 @@ function renderCard(card) {
   const context = card.contextText
     ? `<div id="${contextPanelId}" class="card-disclosure-panel source-context" data-panel-id="context" hidden><p>${escapeHtml(card.contextText)}</p></div>`
     : "";
-  const isKnown = card.status === "known";
   const isSelected = selectedCardIds.has(card.id);
   const selector = selectionMode
     ? `<label class="card-selector">
@@ -540,10 +545,10 @@ function renderCard(card) {
         <span class="status-badge status-${statusClass}">${escapeHtml(status)}</span>
       </div>
       ${note}
-      ${ai.summary ? `<p class="card-summary">${escapeHtml(ai.summary)}</p>` : ""}
-      ${ai.contextMeaning ? `<p class="context-meaning">${escapeHtml(ai.contextMeaning)}</p>` : ""}
+      ${FEATURES.aiEnrichment && ai.summary ? `<p class="card-summary">${escapeHtml(ai.summary)}</p>` : ""}
+      ${FEATURES.aiEnrichment && ai.contextMeaning ? `<p class="context-meaning">${escapeHtml(ai.contextMeaning)}</p>` : ""}
       ${tags}
-      ${ai.error ? `<p class="error-text">${escapeHtml(ai.error)}</p>` : ""}
+      ${FEATURES.aiEnrichment && ai.error ? `<p class="error-text">${escapeHtml(ai.error)}</p>` : ""}
       <div class="card-disclosures">
         <div class="card-disclosure-controls">
           ${enrichmentPanel ? renderDisclosureControl("more", "More", morePanelId) : ""}
@@ -561,7 +566,7 @@ function renderCard(card) {
       <footer class="card-footer">
         <div>${source}</div>
         <div class="card-actions">
-          <button data-action="enrich" data-id="${cardId}" type="button">Explain</button>
+          ${FEATURES.aiEnrichment ? `<button data-action="enrich" data-id="${cardId}" type="button">Explain</button>` : ""}
           <button data-action="toggle-known" data-id="${cardId}" type="button" aria-pressed="${isKnown}">${isKnown ? "Learning" : "Known"}</button>
           <button class="delete-action" data-action="delete" data-id="${cardId}" type="button">Delete</button>
         </div>
@@ -934,7 +939,7 @@ function normalizeImportedCard(card) {
     note: cleanMultilineText(card.note, 2000),
     tags: normalizeTags(card.tags),
     ai: {
-      status: ["enriched", "pending", "needs_api_key", "error"].includes(ai.status)
+      status: ["enriched", "pending", "needs_api_key", "error", "not_requested"].includes(ai.status)
         ? ai.status
         : "pending",
       summary: cleanText(ai.summary).slice(0, MAX_AI_TEXT_LENGTH),
