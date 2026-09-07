@@ -1,0 +1,10 @@
+{
+  "name": "pausemark",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/background.js && node --check src/onboarding.js && node --check src/options.js && node --check src/popup.js && node --test",
+    "package": "sh scripts/package-extension.sh"
+  }
+}

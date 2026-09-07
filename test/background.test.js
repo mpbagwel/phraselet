@@ -24,6 +24,7 @@ function loadBackground({
   const sessionStorage = {};
   const badgeTexts = [];
   const createdTabs = [];
+  const storageAccessLevels = [];
   let commandHandler;
   let installedHandler;
   let runtimeMessageHandler;
@@ -34,6 +35,9 @@ function loadBackground({
     },
     async set(values) {
       Object.assign(state, values);
+    },
+    async setAccessLevel(options) {
+      storageAccessLevels.push(options);
     }
   });
 
@@ -101,7 +105,10 @@ function loadBackground({
     console,
     crypto: webcrypto,
     fetch: fetchImplementation,
+    AbortController,
+    clearTimeout,
     setTimeout,
+    TextEncoder,
     URL
   }, { filename: "src/background.js" });
 
@@ -112,7 +119,8 @@ function loadBackground({
     createdTabs,
     installedHandler,
     localStorage,
-    runtimeMessageHandler
+    runtimeMessageHandler,
+    storageAccessLevels
   };
 }
 
@@ -175,6 +183,62 @@ test("returns the selection error when neither messaging nor injection is availa
 test("declares the scripting permission needed by the fallback", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "manifest.json"), "utf8"));
   assert.ok(manifest.permissions.includes("scripting"));
+  assert.equal(manifest.content_scripts, undefined);
+  assert.equal(manifest.minimum_chrome_version, "102");
+});
+
+test("limits captured page data before saving it", async () => {
+  const { localStorage, runtimeMessageHandler } = loadBackground({
+    injectedResult: {
+      selectedText: "p".repeat(800),
+      contextText: "c".repeat(2000),
+      sourceTitle: "t".repeat(500),
+      sourceUrl: `https://example.com/${"u".repeat(3000)}`
+    }
+  });
+
+  const result = await captureFromPopup(runtimeMessageHandler);
+  const [card] = localStorage["pausemark.cards"];
+
+  assert.equal(result.ok, true);
+  assert.equal(card.selectedText.length, 500);
+  assert.equal(card.contextText.length, 1200);
+  assert.equal(card.sourceTitle.length, 300);
+  assert.equal(card.sourceUrl.length, 2048);
+});
+
+test("refuses new captures after the library card limit", async () => {
+  const initialCards = Array.from({ length: 5000 }, (_, index) => ({
+    id: `card-${index}`,
+    selectedText: `Phrase ${index}`,
+    sourceUrl: "",
+    tags: []
+  }));
+  const { localStorage, runtimeMessageHandler } = loadBackground({
+    initialCards,
+    injectedResult: {
+      selectedText: "One phrase too many",
+      contextText: "",
+      sourceTitle: "Example",
+      sourceUrl: "https://example.com"
+    }
+  });
+
+  const result = await captureFromPopup(runtimeMessageHandler);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "Pausemark can store up to 5000 phrases.");
+  assert.equal(localStorage["pausemark.cards"].length, 5000);
+});
+
+test("restricts local extension storage to trusted contexts", async () => {
+  const { storageAccessLevels } = loadBackground();
+  await new Promise(setImmediate);
+
+  assert.deepEqual(
+    structuredClone(storageAccessLevels),
+    [{ accessLevel: "TRUSTED_CONTEXTS" }]
+  );
 });
 
 test("opens onboarding on first install but not on extension updates", async () => {
@@ -300,4 +364,91 @@ test("bulk tags survive an AI explanation that completes later", async () => {
   assert.equal(result.ok, true);
   assert.deepEqual(Array.from(localStorage["pausemark.cards"][0].tags), ["Keep me"]);
   assert.equal(localStorage["pausemark.cards"][0].ai.status, "enriched");
+});
+
+test("sends bounded, non-stored structured OpenAI requests", async () => {
+  let capturedOptions;
+  const initialCards = [{
+    id: "one",
+    selectedText: "A phrase",
+    contextText: "A phrase in context.",
+    sourceTitle: "A source",
+    sourceUrl: "https://example.com",
+    status: "learning",
+    tags: [],
+    ai: { status: "pending", examples: [], relatedTerms: [] }
+  }];
+  const { runtimeMessageHandler } = loadBackground({
+    initialCards,
+    initialSettings: { apiKey: "test-key", model: "test-model" },
+    fetchImplementation: async (_url, options) => {
+      capturedOptions = options;
+      return {
+        ok: true,
+        async json() {
+          return {
+            output: [{
+              content: [{
+                type: "output_text",
+                text: JSON.stringify({
+                  summary: "A summary.",
+                  contextMeaning: "A contextual meaning.",
+                  examples: ["An example."],
+                  relatedTerms: ["A related term."]
+                })
+              }]
+            }]
+          };
+        }
+      };
+    }
+  });
+
+  const result = await sendRuntimeMessage(runtimeMessageHandler, {
+    type: "PAUSEMARK_ENRICH_CARD",
+    cardId: "one"
+  });
+  const request = JSON.parse(capturedOptions.body);
+
+  assert.equal(result.ok, true);
+  assert.equal(request.store, false);
+  assert.equal(request.max_output_tokens, 600);
+  assert.equal(request.text.format.strict, true);
+  assert.ok(capturedOptions.signal instanceof AbortSignal);
+  const userInput = JSON.parse(request.input[1].content);
+  assert.equal(userInput.sourceHost, "example.com");
+  assert.equal(userInput.sourceUrl, undefined);
+});
+
+test("does not expose OpenAI error response bodies", async () => {
+  const initialCards = [{
+    id: "one",
+    selectedText: "A phrase",
+    contextText: "",
+    status: "learning",
+    tags: [],
+    ai: { status: "pending", examples: [], relatedTerms: [] }
+  }];
+  const { runtimeMessageHandler } = loadBackground({
+    initialCards,
+    initialSettings: { apiKey: "bad-key" },
+    fetchImplementation: async () => ({
+      ok: false,
+      status: 401,
+      headers: { get: () => "request-123" },
+      async text() {
+        return "sensitive upstream response";
+      }
+    })
+  });
+
+  const result = await sendRuntimeMessage(runtimeMessageHandler, {
+    type: "PAUSEMARK_ENRICH_CARD",
+    cardId: "one"
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /rejected the API key/);
+  assert.match(result.error, /request-123/);
+  assert.doesNotMatch(result.error, /sensitive upstream response/);
 });

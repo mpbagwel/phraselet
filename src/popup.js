@@ -1,4 +1,14 @@
 const CARDS_KEY = "pausemark.cards";
+const IMPORT_SCHEMA_VERSION = 1;
+const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
+const MAX_IMPORT_CARDS = 5000;
+const MAX_PHRASE_LENGTH = 500;
+const MAX_CONTEXT_LENGTH = 3000;
+const MAX_TITLE_LENGTH = 300;
+const MAX_URL_LENGTH = 2048;
+const MAX_AI_TEXT_LENGTH = 1200;
+const MAX_AI_ITEM_LENGTH = 500;
+const MAX_LIBRARY_BYTES = 8 * 1024 * 1024;
 const STATUS_LABELS = {
   enriched: "Explained",
   pending: "Thinking",
@@ -494,12 +504,14 @@ function renderCard(card) {
   const enrichmentPanel = examples || relatedTerms
     ? `<div id="${morePanelId}" class="card-disclosure-panel enrichment-details-content" data-panel-id="more" hidden>${examples}${relatedTerms}</div>`
     : "";
-  const source = card.sourceUrl
-    ? `<a class="source-link" href="${escapeAttribute(card.sourceUrl)}" target="_blank" rel="noreferrer" title="Open source: ${escapeAttribute(card.sourceTitle || hostnameFromUrl(card.sourceUrl))}">
+  const sourceUrl = safeSourceUrl(card.sourceUrl);
+  const sourceLabel = cleanText(card.sourceTitle || hostnameFromUrl(sourceUrl));
+  const source = sourceUrl
+    ? `<a class="source-link" href="${escapeAttribute(sourceUrl)}" target="_blank" rel="noreferrer" title="Open source: ${escapeAttribute(sourceLabel)}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 13v6H5V6h6"/></svg>
-        <span>${escapeHtml(card.sourceTitle || hostnameFromUrl(card.sourceUrl))}</span>
+        <span>${escapeHtml(sourceLabel)}</span>
       </a>`
-    : "";
+    : sourceLabel ? `<span class="source-label">${escapeHtml(sourceLabel)}</span>` : "";
   const tags = renderTags(card, cardId);
   const note = card.note
     ? `<p class="card-note">${escapeHtml(card.note)}</p>`
@@ -756,15 +768,13 @@ async function renameSelectedTag(event) {
   }
 
   pendingTagSelection = nextTag;
-  await chrome.storage.local.set({
-    [CARDS_KEY]: cards.map((card) => ({
-      ...card,
-      tags: normalizeTags(
-        normalizeTags(card.tags)
-          .map((tag) => normalizeTagKey(tag) === normalizeTagKey(currentTag) ? nextTag : tag)
-      )
-    }))
-  });
+  await saveCards(cards.map((card) => ({
+    ...card,
+    tags: normalizeTags(
+      normalizeTags(card.tags)
+        .map((tag) => normalizeTagKey(tag) === normalizeTagKey(currentTag) ? nextTag : tag)
+    )
+  })));
   closeTagManager();
   showLibraryStatus(`Renamed ${currentTag} to ${nextTag}.`);
 }
@@ -780,13 +790,11 @@ async function deleteSelectedTag() {
   }
 
   pendingTagSelection = "";
-  await chrome.storage.local.set({
-    [CARDS_KEY]: cards.map((card) => ({
-      ...card,
-      tags: normalizeTags(card.tags)
-        .filter((tag) => normalizeTagKey(tag) !== normalizeTagKey(currentTag))
-    }))
-  });
+  await saveCards(cards.map((card) => ({
+    ...card,
+    tags: normalizeTags(card.tags)
+      .filter((tag) => normalizeTagKey(tag) !== normalizeTagKey(currentTag))
+  })));
   closeTagManager();
   showLibraryStatus(`Deleted tag ${currentTag}.`);
 }
@@ -801,13 +809,11 @@ async function upsertCard(card) {
     card,
     ...cards.filter((candidate) => candidate.id !== card.id)
   ];
-  await chrome.storage.local.set({ [CARDS_KEY]: nextCards });
+  await saveCards(nextCards);
 }
 
 async function deleteCard(id) {
-  await chrome.storage.local.set({
-    [CARDS_KEY]: cards.filter((card) => card.id !== id)
-  });
+  await saveCards(cards.filter((card) => card.id !== id));
 }
 
 function exportCards() {
@@ -844,8 +850,15 @@ async function importCards() {
   }
 
   try {
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      throw new Error("That file is larger than the 5 MB import limit.");
+    }
+
     const payload = JSON.parse(await file.text());
     const importedCards = extractImportCards(payload);
+    if (importedCards.length > MAX_IMPORT_CARDS) {
+      throw new Error(`An import can contain at most ${MAX_IMPORT_CARDS} phrases.`);
+    }
     const normalizedCards = collapseDuplicateCards(
       importedCards.map(normalizeImportedCard).filter(Boolean)
     );
@@ -856,12 +869,30 @@ async function importCards() {
     }
 
     const importResult = mergeImportedCards(normalizedCards, cards);
+    if (importResult.cards.length > MAX_IMPORT_CARDS) {
+      throw new Error(`Pausemark can store up to ${MAX_IMPORT_CARDS} phrases.`);
+    }
 
-    await chrome.storage.local.set({ [CARDS_KEY]: importResult.cards });
+    await saveCards(importResult.cards);
     showLibraryStatus(formatImportStatus(importResult));
-  } catch {
-    showLibraryStatus("Import failed. Choose a valid Pausemark JSON file.", true);
+  } catch (error) {
+    const message = error instanceof SyntaxError
+      ? "Import failed. Choose a valid Pausemark JSON file."
+      : error instanceof Error ? error.message : "Import failed.";
+    showLibraryStatus(message, true);
   }
+}
+
+async function saveCards(nextCards) {
+  const byteLength = new TextEncoder().encode(JSON.stringify(nextCards)).byteLength;
+  if (byteLength > MAX_LIBRARY_BYTES && byteLength >= libraryByteLength(cards)) {
+    throw new Error("Pausemark's local library is full. Export or delete phrases before adding more.");
+  }
+  await chrome.storage.local.set({ [CARDS_KEY]: nextCards });
+}
+
+function libraryByteLength(cardList) {
+  return new TextEncoder().encode(JSON.stringify(cardList)).byteLength;
 }
 
 function extractImportCards(payload) {
@@ -869,11 +900,15 @@ function extractImportCards(payload) {
     return payload;
   }
 
+  if (payload && typeof payload === "object" && payload.schemaVersion !== IMPORT_SCHEMA_VERSION) {
+    throw new Error("This Pausemark export version is not supported.");
+  }
+
   if (Array.isArray(payload?.cards)) {
     return payload.cards;
   }
 
-  return [];
+  throw new Error("No Pausemark phrases were found in that file.");
 }
 
 function normalizeImportedCard(card) {
@@ -881,7 +916,7 @@ function normalizeImportedCard(card) {
     return null;
   }
 
-  const selectedText = cleanText(card.selectedText);
+  const selectedText = cleanText(card.selectedText).slice(0, MAX_PHRASE_LENGTH);
   if (!selectedText) {
     return null;
   }
@@ -889,12 +924,12 @@ function normalizeImportedCard(card) {
   const ai = card.ai && typeof card.ai === "object" ? card.ai : {};
 
   return {
-    id: cleanText(card.id) || crypto.randomUUID(),
+    id: cleanText(card.id).slice(0, 100) || crypto.randomUUID(),
     selectedText,
-    contextText: cleanText(card.contextText),
-    sourceTitle: cleanText(card.sourceTitle),
-    sourceUrl: cleanText(card.sourceUrl),
-    createdAt: cleanText(card.createdAt) || new Date().toISOString(),
+    contextText: cleanText(card.contextText).slice(0, MAX_CONTEXT_LENGTH),
+    sourceTitle: cleanText(card.sourceTitle).slice(0, MAX_TITLE_LENGTH),
+    sourceUrl: safeSourceUrl(cleanText(card.sourceUrl).slice(0, MAX_URL_LENGTH)),
+    createdAt: normalizeIsoDate(card.createdAt),
     status: card.status === "known" ? "known" : "learning",
     note: cleanMultilineText(card.note, 2000),
     tags: normalizeTags(card.tags),
@@ -902,17 +937,28 @@ function normalizeImportedCard(card) {
       status: ["enriched", "pending", "needs_api_key", "error"].includes(ai.status)
         ? ai.status
         : "pending",
-      summary: cleanText(ai.summary),
-      contextMeaning: cleanText(ai.contextMeaning),
+      summary: cleanText(ai.summary).slice(0, MAX_AI_TEXT_LENGTH),
+      contextMeaning: cleanText(ai.contextMeaning).slice(0, MAX_AI_TEXT_LENGTH),
       examples: Array.isArray(ai.examples)
-        ? ai.examples.map(cleanText).filter(Boolean).slice(0, 3)
+        ? ai.examples
+          .map((item) => cleanText(item).slice(0, MAX_AI_ITEM_LENGTH))
+          .filter(Boolean)
+          .slice(0, 3)
         : [],
       relatedTerms: Array.isArray(ai.relatedTerms)
-        ? ai.relatedTerms.map(cleanText).filter(Boolean).slice(0, 5)
+        ? ai.relatedTerms
+          .map((item) => cleanText(item).slice(0, MAX_AI_ITEM_LENGTH))
+          .filter(Boolean)
+          .slice(0, 5)
         : [],
-      error: cleanText(ai.error)
+      error: cleanText(ai.error).slice(0, 500)
     }
   };
+}
+
+function normalizeIsoDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? new Date().toISOString() : date.toISOString();
 }
 
 function collapseDuplicateCards(cardList) {
@@ -1035,6 +1081,15 @@ function hostnameFromUrl(value) {
     return new URL(value).hostname || value;
   } catch {
     return value;
+  }
+}
+
+function safeSourceUrl(value) {
+  try {
+    const url = new URL(cleanText(value));
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : "";
+  } catch {
+    return "";
   }
 }
 

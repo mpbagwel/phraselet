@@ -16,7 +16,7 @@ Pausemark is a first-pass Chrome extension for saving words and phrases as you e
 3. Open the extension popup to review saved cards.
 4. Optional: open extension options and add an OpenAI API key to generate richer explanations.
 
-Cards are stored in `chrome.storage.local` on your machine.
+Cards are stored in `chrome.storage.local` on your machine. Pausemark accesses page content only when you invoke a save action; it does not install a persistent script on every site.
 
 ## Current MVP
 
@@ -30,9 +30,16 @@ Cards are stored in `chrome.storage.local` on your machine.
 - Configurable confirmation or popup after saving
 - Optional OpenAI enrichment through the Responses API
 - First-install welcome guide with capture and data-handling details
+- Gesture-scoped page access, bounded capture/import data, and restricted extension storage
 - No backend service required
 
-## Next useful steps
+## Development checks
+
+Run `npm run check` to syntax-check the extension scripts and execute the automated tests. The same command runs in GitHub Actions. Run `npm run package` to create a store-ready ZIP in `dist/` containing runtime files only.
+
+See `RELEASE.md` for the store-submission checklist and `PRIVACY.md` for the draft privacy policy.
+
+## Possible post-release additions
 
 - Add collections
 - Add a side panel reading companion

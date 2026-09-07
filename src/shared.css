@@ -854,6 +854,11 @@ details[open] > summary { color: var(--ink-soft); }
 
 .source-link:hover { color: var(--accent-dark); text-decoration: underline; }
 
+.source-label {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
 .source-link svg { width: 13px; height: 13px; flex: 0 0 auto; }
 
 .source-link span {

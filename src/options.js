@@ -31,8 +31,8 @@ async function saveOptions() {
   try {
     await chrome.storage.local.set({
       [SETTINGS_KEY]: {
-        apiKey: apiKeyEl.value.trim(),
-        model: modelEl.value.trim() || "gpt-4.1-mini",
+        apiKey: apiKeyEl.value.trim().slice(0, 500),
+        model: modelEl.value.trim().slice(0, 100) || "gpt-4.1-mini",
         afterSave: normalizeAfterSave(afterSaveEl.value)
       }
     });

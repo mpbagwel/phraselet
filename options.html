@@ -48,18 +48,18 @@
           <div class="field-group">
             <label for="api-key">OpenAI API key</label>
             <div class="password-field">
-              <input id="api-key" type="password" autocomplete="off" placeholder="sk-…" aria-describedby="api-key-help">
+              <input id="api-key" type="password" autocomplete="off" maxlength="500" placeholder="sk-…" aria-describedby="api-key-help">
               <button id="toggle-key" class="text-button field-action" type="button" aria-label="Show API key" aria-pressed="false">Show</button>
             </div>
             <p id="api-key-help" class="field-help">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v4m0 4h.01"/><circle cx="12" cy="12" r="9"/></svg>
-              Stored only in Chrome on this device.
+              Stored only in extension storage on this device. Treat it like a password.
             </p>
           </div>
 
           <div class="field-group">
             <label for="model">Model</label>
-            <input id="model" type="text" autocomplete="off" value="gpt-4.1-mini" aria-describedby="model-help">
+            <input id="model" type="text" autocomplete="off" maxlength="100" value="gpt-4.1-mini" aria-describedby="model-help">
             <p id="model-help" class="field-help">Use any model available to your API key.</p>
           </div>
         </div>
