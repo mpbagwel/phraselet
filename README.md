@@ -7,7 +7,7 @@ Pausemark is a first-pass Chrome extension for saving words and phrases as you e
 1. Open Chrome and visit `chrome://extensions`.
 2. Enable **Developer mode**.
 3. Choose **Load unpacked**.
-4. Select this folder: `chrome-extension`.
+4. Select this repository folder.
 
 ## Use it
 
@@ -24,10 +24,12 @@ Cards are stored in `chrome.storage.local` on your machine.
 - Source title, URL, and nearby context capture
 - Duplicate-aware capture and import
 - Local card library with editable notes, tags, filtering, and related phrases
+- Bulk selection for tagging, status changes, and deletion
 - Tag autocomplete, rename, and delete controls
 - JSON import/export for backing up or moving saved phrases
 - Configurable confirmation or popup after saving
 - Optional OpenAI enrichment through the Responses API
+- First-install welcome guide with capture and data-handling details
 - No backend service required
 
 ## Next useful steps

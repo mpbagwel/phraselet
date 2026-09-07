@@ -7,11 +7,17 @@ const saveEl = document.querySelector("#save-options");
 const clearEl = document.querySelector("#clear-key");
 const toggleKeyEl = document.querySelector("#toggle-key");
 const statusEl = document.querySelector("#status");
+const onboardingEl = document.querySelector("#view-onboarding");
 
 document.addEventListener("DOMContentLoaded", loadOptions);
 saveEl.addEventListener("click", saveOptions);
 clearEl.addEventListener("click", clearKey);
 toggleKeyEl.addEventListener("click", toggleKeyVisibility);
+onboardingEl.addEventListener("click", () => {
+  chrome.tabs.create({
+    url: chrome.runtime.getURL("onboarding.html")
+  });
+});
 
 async function loadOptions() {
   const settings = await getSettings();

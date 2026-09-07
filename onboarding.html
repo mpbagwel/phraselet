@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Welcome to Pausemark</title>
+    <link rel="stylesheet" href="src/shared.css">
+    <script src="src/onboarding.js" defer></script>
+  </head>
+  <body class="onboarding-shell">
+    <header class="options-topbar">
+      <div class="brand-lockup brand-link">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+        <span>Pausemark</span>
+      </div>
+      <span class="page-label">Welcome</span>
+    </header>
+
+    <main class="onboarding-layout">
+      <section class="onboarding-hero" aria-labelledby="onboarding-title">
+        <p class="eyebrow">A quieter way to keep what matters</p>
+        <h1 id="onboarding-title">Save what made<br>you pause.</h1>
+        <p>Collect useful words and phrases without breaking your reading flow, then return to organize and learn them later.</p>
+
+        <div class="onboarding-shortcut" aria-label="Save selection keyboard shortcut">
+          <span>Highlight text on any webpage</span>
+          <kbd>Alt/⌥ ⇧ S</kbd>
+        </div>
+      </section>
+
+      <section class="onboarding-panel" aria-label="Getting started with Pausemark">
+        <ol class="onboarding-steps">
+          <li>
+            <span class="section-number">01</span>
+            <div>
+              <h2>Capture in place</h2>
+              <p>Highlight a phrase, use the shortcut, or choose <strong>Save to Pausemark</strong> from the context menu.</p>
+            </div>
+          </li>
+          <li>
+            <span class="section-number">02</span>
+            <div>
+              <h2>Make the library yours</h2>
+              <p>Search, add notes and tags, mark phrases known, or select several phrases for bulk organization.</p>
+            </div>
+          </li>
+          <li>
+            <span class="section-number">03</span>
+            <div>
+              <h2>Explain when you want</h2>
+              <p>AI explanations are optional. Add your own OpenAI API key in Settings if you want contextual definitions and examples.</p>
+            </div>
+          </li>
+        </ol>
+
+        <aside class="privacy-note" aria-labelledby="privacy-title">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.9 8.5 7 10 4.1-1.5 7-5.4 7-10V6l-7-3Z"/><path d="m9.5 12 1.7 1.7 3.6-4"/></svg>
+          <div>
+            <h2 id="privacy-title">Your data and AI</h2>
+            <p>Saved phrases, nearby context, page titles, URLs, notes, tags, and your optional API key are stored in Chrome on this device. When AI explanations are enabled, the phrase and its source details are sent to OpenAI to create the explanation.</p>
+          </div>
+        </aside>
+
+        <div class="onboarding-actions">
+          <button id="onboarding-settings" class="secondary-button" type="button">Review settings</button>
+          <button id="onboarding-finish" class="primary-button" type="button">
+            Start saving
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+        <p id="onboarding-status" class="status-line" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+  </body>
+</html>

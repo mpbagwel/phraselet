@@ -22,9 +22,23 @@ const exportCardsEl = document.querySelector("#export-cards");
 const importCardsEl = document.querySelector("#import-cards");
 const importFileEl = document.querySelector("#import-file");
 const libraryStatusEl = document.querySelector("#library-status");
+const toggleSelectionEl = document.querySelector("#toggle-selection");
+const bulkActionsEl = document.querySelector("#bulk-actions");
+const bulkSelectAllEl = document.querySelector("#bulk-select-all");
+const bulkSelectAllLabelEl = document.querySelector("#bulk-select-all-label");
+const bulkSelectionCountEl = document.querySelector("#bulk-selection-count");
+const clearSelectionEl = document.querySelector("#clear-selection");
+const bulkTagNameEl = document.querySelector("#bulk-tag-name");
+const bulkAddTagEl = document.querySelector("#bulk-add-tag");
+const bulkRemoveTagEl = document.querySelector("#bulk-remove-tag");
+const bulkMarkKnownEl = document.querySelector("#bulk-mark-known");
+const bulkMarkLearningEl = document.querySelector("#bulk-mark-learning");
+const bulkDeleteEl = document.querySelector("#bulk-delete");
 
 let cards = [];
 let pendingTagSelection = null;
+let selectionMode = false;
+const selectedCardIds = new Set();
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -35,6 +49,16 @@ async function init() {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "local" && changes[CARDS_KEY]) {
       cards = changes[CARDS_KEY].newValue || [];
+      if (!cards.length) {
+        selectionMode = false;
+        selectedCardIds.clear();
+      }
+      const currentIds = new Set(cards.map((card) => card.id));
+      [...selectedCardIds].forEach((id) => {
+        if (!currentIds.has(id)) {
+          selectedCardIds.delete(id);
+        }
+      });
       render();
     }
   });
@@ -77,6 +101,14 @@ importCardsEl.addEventListener("click", () => {
 });
 
 importFileEl.addEventListener("change", importCards);
+toggleSelectionEl.addEventListener("click", toggleSelectionMode);
+bulkSelectAllEl.addEventListener("change", toggleAllMatchingCards);
+clearSelectionEl.addEventListener("click", clearBulkSelection);
+bulkAddTagEl.addEventListener("click", () => applyBulkAction("add_tag"));
+bulkRemoveTagEl.addEventListener("click", () => applyBulkAction("remove_tag"));
+bulkMarkKnownEl.addEventListener("click", () => applyBulkAction("mark_known"));
+bulkMarkLearningEl.addEventListener("click", () => applyBulkAction("mark_learning"));
+bulkDeleteEl.addEventListener("click", deleteSelectedCards);
 
 searchEl.addEventListener("input", render);
 tagFilterEl.addEventListener("change", () => {
@@ -138,6 +170,20 @@ cardsEl.addEventListener("click", async (event) => {
       cardId: id
     });
   }
+});
+
+cardsEl.addEventListener("change", (event) => {
+  const checkbox = event.target.closest('input[data-action="select-card"]');
+  if (!checkbox) {
+    return;
+  }
+
+  if (checkbox.checked) {
+    selectedCardIds.add(checkbox.dataset.id);
+  } else {
+    selectedCardIds.delete(checkbox.dataset.id);
+  }
+  render();
 });
 
 cardsEl.addEventListener("submit", async (event) => {
@@ -229,6 +275,118 @@ async function saveCardEdits(form) {
   }
 }
 
+function toggleSelectionMode() {
+  selectionMode = !selectionMode;
+  if (!selectionMode) {
+    selectedCardIds.clear();
+    bulkTagNameEl.value = "";
+  }
+  closeTagManager();
+  render();
+}
+
+function toggleAllMatchingCards() {
+  const visibleIds = getVisibleCards().map((card) => card.id);
+
+  if (bulkSelectAllEl.checked) {
+    visibleIds.forEach((id) => selectedCardIds.add(id));
+  } else {
+    visibleIds.forEach((id) => selectedCardIds.delete(id));
+  }
+  render();
+}
+
+function clearBulkSelection() {
+  selectedCardIds.clear();
+  render();
+}
+
+async function applyBulkAction(operation) {
+  const tag = normalizeTag(bulkTagNameEl.value);
+  if (["add_tag", "remove_tag"].includes(operation) && !tag) {
+    showLibraryStatus("Enter a tag name.", true);
+    bulkTagNameEl.focus();
+    return;
+  }
+
+  setBulkControlsDisabled(true);
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: "PAUSEMARK_BULK_UPDATE_CARDS",
+      operation,
+      cardIds: [...selectedCardIds],
+      tag
+    });
+
+    if (!result?.ok) {
+      showLibraryStatus(result?.error || "Could not update the selected phrases.", true);
+      return;
+    }
+
+    const changedPhrases = phraseCount(result.changed);
+    const statusMessage = {
+      add_tag: `Added ${tag} to ${changedPhrases}.`,
+      remove_tag: `Removed ${tag} from ${changedPhrases}.`,
+      mark_known: `Marked ${changedPhrases} as known.`,
+      mark_learning: `Marked ${changedPhrases} as learning.`
+    }[operation];
+    showLibraryStatus(statusMessage);
+
+    if (["add_tag", "remove_tag"].includes(operation)) {
+      bulkTagNameEl.value = "";
+    }
+  } catch {
+    showLibraryStatus("Could not update the selected phrases.", true);
+  } finally {
+    setBulkControlsDisabled(false);
+    render();
+  }
+}
+
+async function deleteSelectedCards() {
+  const count = selectedCardIds.size;
+  if (!count || !window.confirm(`Delete ${phraseCount(count)}? This cannot be undone.`)) {
+    return;
+  }
+
+  setBulkControlsDisabled(true);
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: "PAUSEMARK_BULK_UPDATE_CARDS",
+      operation: "delete",
+      cardIds: [...selectedCardIds]
+    });
+
+    if (!result?.ok) {
+      showLibraryStatus(result?.error || "Could not delete the selected phrases.", true);
+      return;
+    }
+
+    selectedCardIds.clear();
+    showLibraryStatus(`Deleted ${phraseCount(result.changed)}.`);
+  } catch {
+    showLibraryStatus("Could not delete the selected phrases.", true);
+  } finally {
+    setBulkControlsDisabled(false);
+    render();
+  }
+}
+
+function setBulkControlsDisabled(disabled) {
+  [
+    bulkSelectAllEl,
+    clearSelectionEl,
+    bulkTagNameEl,
+    bulkAddTagEl,
+    bulkRemoveTagEl,
+    bulkMarkKnownEl,
+    bulkMarkLearningEl,
+    bulkDeleteEl
+  ].forEach((control) => {
+    control.disabled = disabled;
+  });
+}
+
 function focusCard(id) {
   searchEl.value = "";
   tagFilterEl.value = "";
@@ -247,10 +405,31 @@ function focusCard(id) {
 }
 
 function render() {
-  const query = searchEl.value.trim().toLowerCase();
   renderTagFilter();
+  const query = searchEl.value.trim().toLowerCase();
   const selectedTag = normalizeTagKey(tagFilterEl.value);
-  const visibleCards = cards.filter((card) => {
+  const visibleCards = getVisibleCards(query, selectedTag);
+
+  countEl.textContent = query || selectedTag
+    ? `${visibleCards.length} of ${cards.length} phrases`
+    : cards.length === 1 ? "1 saved phrase" : `${cards.length} saved phrases`;
+  exportCardsEl.disabled = cards.length === 0;
+  toggleSelectionEl.disabled = cards.length === 0 && !selectionMode;
+  renderBulkActions(visibleCards);
+
+  if (!visibleCards.length) {
+    cardsEl.innerHTML = emptyState(query, selectedTag);
+    return;
+  }
+
+  cardsEl.innerHTML = visibleCards.map(renderCard).join("");
+}
+
+function getVisibleCards(
+  query = searchEl.value.trim().toLowerCase(),
+  selectedTag = normalizeTagKey(tagFilterEl.value)
+) {
+  return cards.filter((card) => {
     const tags = normalizeTags(card.tags);
     const haystack = [
       card.selectedText,
@@ -260,24 +439,41 @@ function render() {
       card.ai?.contextMeaning,
       ...tags
     ].join(" ").toLowerCase();
-
     const matchesTag = !selectedTag
       || tags.some((tag) => normalizeTagKey(tag) === selectedTag);
 
     return haystack.includes(query) && matchesTag;
   });
+}
 
-  countEl.textContent = query || selectedTag
-    ? `${visibleCards.length} of ${cards.length} phrases`
-    : cards.length === 1 ? "1 saved phrase" : `${cards.length} saved phrases`;
-  exportCardsEl.disabled = cards.length === 0;
+function renderBulkActions(visibleCards) {
+  bulkActionsEl.hidden = !selectionMode;
+  toggleSelectionEl.textContent = selectionMode ? "Done" : "Select";
+  toggleSelectionEl.setAttribute("aria-pressed", String(selectionMode));
 
-  if (!visibleCards.length) {
-    cardsEl.innerHTML = emptyState(query, selectedTag);
+  if (!selectionMode) {
     return;
   }
 
-  cardsEl.innerHTML = visibleCards.map(renderCard).join("");
+  const visibleIds = visibleCards.map((card) => card.id);
+  const visibleSelected = visibleIds.filter((id) => selectedCardIds.has(id)).length;
+  const hasSelection = selectedCardIds.size > 0;
+  const allVisibleSelected = visibleIds.length > 0 && visibleSelected === visibleIds.length;
+
+  bulkSelectAllEl.checked = allVisibleSelected;
+  bulkSelectAllEl.indeterminate = visibleSelected > 0 && !allVisibleSelected;
+  bulkSelectAllEl.disabled = visibleIds.length === 0;
+  bulkSelectAllLabelEl.textContent = visibleIds.length
+    ? `Select all ${visibleIds.length} matching`
+    : "No matching phrases";
+  bulkSelectionCountEl.textContent = `${selectedCardIds.size} selected`;
+  clearSelectionEl.disabled = !hasSelection;
+  bulkTagNameEl.disabled = !hasSelection;
+  bulkAddTagEl.disabled = !hasSelection;
+  bulkRemoveTagEl.disabled = !hasSelection;
+  bulkMarkKnownEl.disabled = !hasSelection;
+  bulkMarkLearningEl.disabled = !hasSelection;
+  bulkDeleteEl.disabled = !hasSelection;
 }
 
 function renderCard(card) {
@@ -314,11 +510,21 @@ function renderCard(card) {
     ? `<div id="${contextPanelId}" class="card-disclosure-panel source-context" data-panel-id="context" hidden><p>${escapeHtml(card.contextText)}</p></div>`
     : "";
   const isKnown = card.status === "known";
+  const isSelected = selectedCardIds.has(card.id);
+  const selector = selectionMode
+    ? `<label class="card-selector">
+        <input data-action="select-card" data-id="${cardId}" type="checkbox" ${isSelected ? "checked" : ""}>
+        <span class="sr-only">Select ${escapeHtml(card.selectedText)}</span>
+      </label>`
+    : "";
 
   return `
-    <article class="phrase-card ${isKnown ? "is-known" : ""}" data-card-id="${cardId}">
+    <article class="phrase-card ${isKnown ? "is-known" : ""} ${isSelected ? "is-selected" : ""}" data-card-id="${cardId}">
       <div class="card-header">
-        <h2>${escapeHtml(card.selectedText)}</h2>
+        <div class="card-title-row">
+          ${selector}
+          <h2>${escapeHtml(card.selectedText)}</h2>
+        </div>
         <span class="status-badge status-${statusClass}">${escapeHtml(status)}</span>
       </div>
       ${note}

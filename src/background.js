@@ -3,13 +3,20 @@ const CARDS_KEY = "pausemark.cards";
 const SETTINGS_KEY = "pausemark.settings";
 const SELECTIONS_KEY = "pausemark.selections";
 const SELECTION_TTL_MS = 2 * 60 * 1000;
+let cardsMutationQueue = Promise.resolve();
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   chrome.contextMenus.create({
     id: MENU_ID,
     title: "Save to Pausemark",
     contexts: ["selection"]
   });
+
+  if (details.reason === "install") {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL("onboarding.html")
+    }).catch(() => undefined);
+  }
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -40,30 +47,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "PAUSEMARK_SAVE_ACTIVE_SELECTION") {
-    handlePopupCapture(sendResponse);
+    respondToMessage(handlePopupCapture(), sendResponse);
     return true;
   }
 
   if (message?.type === "PAUSEMARK_ENRICH_CARD") {
-    enrichExistingCard(message.cardId).then(sendResponse);
+    respondToMessage(enrichExistingCard(message.cardId), sendResponse);
+    return true;
+  }
+
+  if (message?.type === "PAUSEMARK_BULK_UPDATE_CARDS") {
+    respondToMessage(bulkUpdateCards(message), sendResponse);
     return true;
   }
 
   return false;
 });
 
-async function handlePopupCapture(sendResponse) {
+function respondToMessage(operation, sendResponse) {
+  operation
+    .then(sendResponse)
+    .catch((error) => sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : "Pausemark could not complete that action."
+    }));
+}
+
+async function handlePopupCapture() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) {
-    sendResponse({ ok: false, error: "No active tab found." });
-    return;
+    return { ok: false, error: "No active tab found." };
   }
 
-  const result = await saveSelectionFromTab(tab.id, {
+  return saveSelectionFromTab(tab.id, {
     sourceTitle: tab.title ?? "",
     sourceUrl: tab.url ?? ""
   });
-  sendResponse(result);
 }
 
 async function handleShortcutCapture(commandTab) {
@@ -343,58 +362,78 @@ async function enrichExistingCard(cardId) {
 
   const settings = await getSettings();
   if (!settings.apiKey) {
-    const updated = {
-      ...card,
+    const updated = await patchCard(cardId, (currentCard) => ({
+      ...currentCard,
       ai: {
-        ...card.ai,
+        ...currentCard.ai,
         status: "needs_api_key",
-        summary: fallbackDefinition(card.selectedText),
-        contextMeaning: card.contextText
+        summary: fallbackDefinition(currentCard.selectedText),
+        contextMeaning: currentCard.contextText
           ? "Add an OpenAI API key in Options to generate a context-specific explanation."
           : "",
         error: ""
       }
-    };
-    await upsertCard(updated);
+    }));
     return { ok: true, card: updated };
   }
 
-  await upsertCard({
-    ...card,
+  await patchCard(cardId, (currentCard) => ({
+    ...currentCard,
     ai: {
-      ...card.ai,
+      ...currentCard.ai,
       status: "pending",
       error: ""
     }
-  });
+  }));
 
   try {
     const explanation = await requestExplanation(card, settings);
-    const updated = {
-      ...card,
-      ai: {
-        status: "enriched",
-        summary: explanation.summary,
-        contextMeaning: explanation.contextMeaning,
-        examples: explanation.examples,
-        relatedTerms: explanation.relatedTerms,
-        error: ""
+    const updated = await patchCard(cardId, (currentCard) => {
+      if (!hasSameExplanationInput(currentCard, card)) {
+        return null;
       }
-    };
-    await upsertCard(updated);
+
+      return {
+        ...currentCard,
+        ai: {
+          status: "enriched",
+          summary: explanation.summary,
+          contextMeaning: explanation.contextMeaning,
+          examples: explanation.examples,
+          relatedTerms: explanation.relatedTerms,
+          error: ""
+        }
+      };
+    });
+
+    if (!updated) {
+      return { ok: false, error: "The phrase changed before its explanation finished." };
+    }
     return { ok: true, card: updated };
   } catch (error) {
-    const updated = {
-      ...card,
-      ai: {
-        ...card.ai,
-        status: "error",
-        error: error instanceof Error ? error.message : "AI enrichment failed."
+    const updated = await patchCard(cardId, (currentCard) => {
+      if (!hasSameExplanationInput(currentCard, card)) {
+        return null;
       }
-    };
-    await upsertCard(updated);
-    return { ok: false, card: updated, error: updated.ai.error };
+
+      return {
+        ...currentCard,
+        ai: {
+          ...currentCard.ai,
+          status: "error",
+          error: error instanceof Error ? error.message : "AI enrichment failed."
+        }
+      };
+    });
+    const errorMessage = updated?.ai?.error
+      || (error instanceof Error ? error.message : "AI enrichment failed.");
+    return { ok: false, card: updated, error: errorMessage };
   }
+}
+
+function hasSameExplanationInput(left, right) {
+  return cleanText(left?.selectedText) === cleanText(right?.selectedText)
+    && cleanText(left?.contextText) === cleanText(right?.contextText);
 }
 
 async function requestExplanation(card, settings) {
@@ -484,18 +523,142 @@ function normalizeExplanation(explanation) {
   };
 }
 
+async function bulkUpdateCards(message) {
+  const cardIds = Array.isArray(message.cardIds)
+    ? [...new Set(message.cardIds.map(cleanText).filter(Boolean))]
+    : [];
+  const operation = message.operation;
+
+  if (!cardIds.length) {
+    return { ok: false, error: "Select at least one phrase." };
+  }
+
+  if (!["add_tag", "remove_tag", "mark_known", "mark_learning", "delete"].includes(operation)) {
+    return { ok: false, error: "That bulk action is not supported." };
+  }
+
+  const tag = cleanText(message.tag).slice(0, 40);
+  if (["add_tag", "remove_tag"].includes(operation) && !tag) {
+    return { ok: false, error: "Enter a tag name." };
+  }
+
+  return mutateCards((cards) => {
+    const selectedIds = new Set(cardIds);
+    let changed = 0;
+    let nextCards;
+
+    if (operation === "delete") {
+      nextCards = cards.filter((card) => {
+        const shouldDelete = selectedIds.has(card.id);
+        if (shouldDelete) {
+          changed += 1;
+        }
+        return !shouldDelete;
+      });
+    } else {
+      nextCards = cards.map((card) => {
+        if (!selectedIds.has(card.id)) {
+          return card;
+        }
+
+        if (operation === "mark_known" || operation === "mark_learning") {
+          const status = operation === "mark_known" ? "known" : "learning";
+          if (card.status === status) {
+            return card;
+          }
+          changed += 1;
+          return { ...card, status };
+        }
+
+        const tags = normalizeCardTags(card.tags);
+        const tagKey = tag.toLowerCase();
+        const hasTag = tags.some((candidate) => candidate.toLowerCase() === tagKey);
+
+        if (operation === "add_tag") {
+          if (hasTag || tags.length >= 12) {
+            return card;
+          }
+          changed += 1;
+          return { ...card, tags: [...tags, tag] };
+        }
+
+        if (!hasTag) {
+          return card;
+        }
+        changed += 1;
+        return {
+          ...card,
+          tags: tags.filter((candidate) => candidate.toLowerCase() !== tagKey)
+        };
+      });
+    }
+
+    return {
+      cards: nextCards,
+      value: { ok: true, changed, requested: cardIds.length }
+    };
+  });
+}
+
+function normalizeCardTags(tags) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  const seen = new Set();
+  return tags.map((tag) => cleanText(tag).slice(0, 40)).filter((tag) => {
+    const key = tag.toLowerCase();
+    if (!key || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  }).slice(0, 12);
+}
+
 async function getCards() {
   const result = await chrome.storage.local.get(CARDS_KEY);
   return Array.isArray(result[CARDS_KEY]) ? result[CARDS_KEY] : [];
 }
 
 async function upsertCard(card) {
-  const cards = await getCards();
-  const nextCards = [
-    card,
-    ...cards.filter((candidate) => candidate.id !== card.id)
-  ];
-  await chrome.storage.local.set({ [CARDS_KEY]: nextCards });
+  return mutateCards((cards) => ({
+    cards: [
+      card,
+      ...cards.filter((candidate) => candidate.id !== card.id)
+    ],
+    value: card
+  }));
+}
+
+function patchCard(cardId, updater) {
+  return mutateCards((cards) => {
+    const cardIndex = cards.findIndex((card) => card.id === cardId);
+    if (cardIndex === -1) {
+      return { cards, value: null };
+    }
+
+    const updatedCard = updater(cards[cardIndex]);
+    if (!updatedCard) {
+      return { cards, value: null };
+    }
+
+    const nextCards = [...cards];
+    nextCards[cardIndex] = updatedCard;
+    return { cards: nextCards, value: updatedCard };
+  });
+}
+
+function mutateCards(mutator) {
+  const mutation = cardsMutationQueue.then(async () => {
+    const cards = await getCards();
+    const { cards: nextCards, value } = mutator(cards);
+    await chrome.storage.local.set({ [CARDS_KEY]: nextCards });
+    return value;
+  });
+
+  cardsMutationQueue = mutation.catch(() => undefined);
+  return mutation;
 }
 
 async function getSettings() {

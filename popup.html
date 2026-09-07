@@ -45,6 +45,7 @@
       </section>
 
       <section class="library-actions" aria-label="Import and export">
+        <button id="toggle-selection" class="text-button selection-toggle" type="button" aria-pressed="false">Select</button>
         <button id="export-cards" class="icon-button small-icon-button" type="button" title="Export phrases" aria-label="Export phrases">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 15v5h14v-5"/></svg>
         </button>
@@ -54,6 +55,28 @@
         <input id="import-file" type="file" accept="application/json,.json" hidden>
       </section>
     </div>
+
+    <section id="bulk-actions" class="bulk-actions" aria-label="Bulk phrase actions" hidden>
+      <div class="bulk-selection-row">
+        <label class="bulk-select-all">
+          <input id="bulk-select-all" type="checkbox">
+          <span id="bulk-select-all-label">Select all matching</span>
+        </label>
+        <span id="bulk-selection-count" class="bulk-selection-count" role="status" aria-live="polite">0 selected</span>
+        <button id="clear-selection" class="text-button" type="button">Clear</button>
+      </div>
+      <div class="bulk-tag-row">
+        <label class="sr-only" for="bulk-tag-name">Tag for selected phrases</label>
+        <input id="bulk-tag-name" type="text" maxlength="40" placeholder="Tag selected phrases" list="tag-suggestions" autocomplete="off">
+        <button id="bulk-add-tag" class="secondary-button" type="button">Add</button>
+        <button id="bulk-remove-tag" class="secondary-button" type="button">Remove</button>
+      </div>
+      <div class="bulk-state-row">
+        <button id="bulk-mark-known" class="secondary-button" type="button">Mark known</button>
+        <button id="bulk-mark-learning" class="secondary-button" type="button">Mark learning</button>
+        <button id="bulk-delete" class="danger-button" type="button">Delete</button>
+      </div>
+    </section>
 
     <section id="tag-manager" class="tag-manager" hidden>
       <p class="eyebrow">Manage selected tag</p>
