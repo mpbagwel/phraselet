@@ -1,11 +1,9 @@
-dist/
+/dist/
 .DS_Store
 node_modules/
 coverage/
 *.log
-
 .env
 .env.*
 !.env.example
-
 /smoke-test/phraselet-export-*.json
