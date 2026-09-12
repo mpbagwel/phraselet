@@ -1,4 +1,4 @@
-import { FEATURES, loadEnrichmentProvider } from "./features.js";
+import { FEATURES, loadEnrichmentRuntime } from "./features.js";
 
 const MENU_ID = "phraselet-save-selection";
 const CARDS_KEY = "phraselet.cards";
@@ -15,6 +15,13 @@ const MAX_LIBRARY_CARDS = 5000;
 const MAX_LIBRARY_BYTES = 8 * 1024 * 1024;
 let cardsMutationQueue = Promise.resolve();
 const storageMigrationPromise = migrateLegacyStorage();
+const enrichmentRuntimePromise = FEATURES.aiEnrichment
+  ? loadEnrichmentRuntime().then((module) => module?.createEnrichmentRuntime({
+    getCards,
+    getSettings,
+    patchCard
+  }) || null)
+  : Promise.resolve(null);
 
 chrome.storage.local.setAccessLevel({
   accessLevel: "TRUSTED_CONTEXTS"
@@ -63,7 +70,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (FEATURES.aiEnrichment && message?.type === "PHRASELET_ENRICH_CARD") {
-    respondToMessage(enrichExistingCard(message.cardId), sendResponse);
+    respondToMessage(enrichCard(message.cardId), sendResponse);
     return true;
   }
 
@@ -210,7 +217,7 @@ async function saveSelectionFromTab(tabId, fallback) {
   await upsertCard(card);
   await setBadge("1");
   if (FEATURES.aiEnrichment) {
-    enrichExistingCard(card.id).catch(() => undefined);
+    enrichCard(card.id).catch(() => undefined);
   }
 
   return {
@@ -403,93 +410,11 @@ function displayCaptureToast(message, tone) {
   }, 2200);
 }
 
-async function enrichExistingCard(cardId) {
-  const cards = await getCards();
-  const card = cards.find((candidate) => candidate.id === cardId);
-
-  if (!card) {
-    return { ok: false, error: "Card not found." };
-  }
-
-  const provider = await loadEnrichmentProvider();
-  if (!provider) {
-    return { ok: false, error: "AI enrichment is not available in this build." };
-  }
-
-  const settings = await getSettings();
-  if (!settings.apiKey) {
-    const updated = await patchCard(cardId, (currentCard) => ({
-      ...currentCard,
-      ai: {
-        ...currentCard.ai,
-        status: "needs_api_key",
-        summary: fallbackDefinition(currentCard.selectedText),
-        contextMeaning: currentCard.contextText
-          ? "Add an OpenAI API key in Options to generate a context-specific explanation."
-          : "",
-        error: ""
-      }
-    }));
-    return { ok: true, card: updated };
-  }
-
-  await patchCard(cardId, (currentCard) => ({
-    ...currentCard,
-    ai: {
-      ...currentCard.ai,
-      status: "pending",
-      error: ""
-    }
-  }));
-
-  try {
-    const explanation = await provider.requestExplanation(card, settings);
-    const updated = await patchCard(cardId, (currentCard) => {
-      if (!hasSameExplanationInput(currentCard, card)) {
-        return null;
-      }
-
-      return {
-        ...currentCard,
-        ai: {
-          status: "enriched",
-          summary: explanation.summary,
-          contextMeaning: explanation.contextMeaning,
-          examples: explanation.examples,
-          relatedTerms: explanation.relatedTerms,
-          error: ""
-        }
-      };
-    });
-
-    if (!updated) {
-      return { ok: false, error: "The phrase changed before its explanation finished." };
-    }
-    return { ok: true, card: updated };
-  } catch (error) {
-    const updated = await patchCard(cardId, (currentCard) => {
-      if (!hasSameExplanationInput(currentCard, card)) {
-        return null;
-      }
-
-      return {
-        ...currentCard,
-        ai: {
-          ...currentCard.ai,
-          status: "error",
-          error: error instanceof Error ? error.message : "AI enrichment failed."
-        }
-      };
-    });
-    const errorMessage = updated?.ai?.error
-      || (error instanceof Error ? error.message : "AI enrichment failed.");
-    return { ok: false, card: updated, error: errorMessage };
-  }
-}
-
-function hasSameExplanationInput(left, right) {
-  return cleanText(left?.selectedText) === cleanText(right?.selectedText)
-    && cleanText(left?.contextText) === cleanText(right?.contextText);
+async function enrichCard(cardId) {
+  const runtime = await enrichmentRuntimePromise;
+  return runtime
+    ? runtime.enrichCard(cardId)
+    : { ok: false, error: "Explanations are not available in this build." };
 }
 
 async function bulkUpdateCards(message) {
@@ -612,8 +537,9 @@ async function migrateLegacyStorage() {
   if (!FEATURES.aiEnrichment) {
     const currentSettings = updates[SETTINGS_KEY] ?? settings[SETTINGS_KEY];
     if (currentSettings && typeof currentSettings === "object") {
-      const { apiKey: _apiKey, model: _model, ...baseSettings } = currentSettings;
-      updates[SETTINGS_KEY] = baseSettings;
+      updates[SETTINGS_KEY] = ["confirmation", "open_popup"].includes(currentSettings.afterSave)
+        ? { afterSave: currentSettings.afterSave }
+        : {};
     }
   }
 
@@ -684,8 +610,6 @@ async function getSettings() {
   await storageMigrationPromise;
   const result = await chrome.storage.local.get(SETTINGS_KEY);
   return {
-    apiKey: "",
-    model: "gpt-4.1-mini",
     afterSave: "confirmation",
     ...result[SETTINGS_KEY]
   };
@@ -738,8 +662,4 @@ function canonicalizeUrl(value) {
   } catch {
     return sourceUrl;
   }
-}
-
-function fallbackDefinition(phrase) {
-  return `Saved "${phrase}". AI enrichment is ready once an API key is configured.`;
 }

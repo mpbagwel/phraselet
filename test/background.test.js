@@ -7,6 +7,7 @@ const { webcrypto } = require("node:crypto");
 
 const projectRoot = path.resolve(__dirname, "..");
 const backgroundSource = fs.readFileSync(path.join(projectRoot, "src/background.js"), "utf8");
+const enrichmentBackgroundSource = fs.readFileSync(path.join(projectRoot, "src/enrichment/background.js"), "utf8");
 const openAiSource = fs.readFileSync(path.join(projectRoot, "src/enrichment/openai.js"), "utf8");
 
 function loadBackground({
@@ -130,11 +131,15 @@ function loadBackground({
     "export async function requestExplanation",
     "async function requestExplanation"
   )}\nglobalThis.__requestExplanation = requestExplanation;\n})();`;
+  const enrichmentRuntimeSource = `(function () {\n${enrichmentBackgroundSource
+    .replace('import { requestExplanation } from "./openai.js";', "const requestExplanation = globalThis.__requestExplanation;")
+    .replace("export function createEnrichmentRuntime", "function createEnrichmentRuntime")}\nglobalThis.__createEnrichmentRuntime = createEnrichmentRuntime;\n})();`;
   const runnableBackgroundSource = backgroundSource.replace(
-    'import { FEATURES, loadEnrichmentProvider } from "./features.js";',
-    `const FEATURES = Object.freeze({ aiEnrichment: ${aiEnrichment} });\nconst loadEnrichmentProvider = async () => FEATURES.aiEnrichment ? ({ requestExplanation: globalThis.__requestExplanation }) : null;`
+    'import { FEATURES, loadEnrichmentRuntime } from "./features.js";',
+    `const FEATURES = Object.freeze({ aiEnrichment: ${aiEnrichment} });\nconst loadEnrichmentRuntime = async () => FEATURES.aiEnrichment ? ({ createEnrichmentRuntime: globalThis.__createEnrichmentRuntime }) : null;`
   );
   vm.runInContext(providerSource, context, { filename: "src/enrichment/openai.js" });
+  vm.runInContext(enrichmentRuntimeSource, context, { filename: "src/enrichment/background.js" });
   vm.runInContext(runnableBackgroundSource, context, { filename: "src/background.js" });
 
   return {

@@ -19,12 +19,19 @@ test("base and AI development packages enforce their capability boundaries", () 
   const aiFeatures = read(path.join(aiRoot, "src/features.js"));
   const baseOptions = read(path.join(baseRoot, "options.html"));
   const baseOnboarding = read(path.join(baseRoot, "onboarding.html"));
+  const baseRuntimeSources = listFiles(path.join(baseRoot, "src"))
+    .map(read)
+    .join("\n");
 
   assert.equal(baseManifest.host_permissions, undefined);
   assert.match(baseFeatures, /aiEnrichment: false/);
   assert.equal(fs.existsSync(path.join(baseRoot, "src/enrichment")), false);
   assert.doesNotMatch(baseOptions, /api-key|OpenAI|AI explanations/i);
   assert.doesNotMatch(baseOnboarding, /OpenAI|AI explanations/i);
+  assert.doesNotMatch(
+    baseRuntimeSources,
+    /OpenAI|api\.openai\.com|gpt-4|sk-|AI explanations|Add an .* API key/i
+  );
 
   assert.deepEqual(aiManifest.host_permissions, ["https://api.openai.com/*"]);
   assert.match(aiFeatures, /aiEnrichment: true/);
@@ -38,4 +45,11 @@ function read(filename) {
 
 function readJson(filename) {
   return JSON.parse(read(filename));
+}
+
+function listFiles(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const filename = path.join(directory, entry.name);
+    return entry.isDirectory() ? listFiles(filename) : [filename];
+  });
 }

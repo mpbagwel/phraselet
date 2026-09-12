@@ -2,12 +2,12 @@ export const FEATURES = Object.freeze({
   aiEnrichment: false
 });
 
-export async function loadEnrichmentProvider() {
+export async function loadEnrichmentRuntime() {
   if (!FEATURES.aiEnrichment) {
     return null;
   }
 
-  return import("./enrichment/openai.js");
+  return import("./enrichment/background.js");
 }
 
 export async function loadEnrichmentOptions() {
@@ -16,4 +16,12 @@ export async function loadEnrichmentOptions() {
   }
 
   return import("./enrichment/options.js");
+}
+
+export async function loadEnrichmentOnboarding() {
+  if (!FEATURES.aiEnrichment) {
+    return null;
+  }
+
+  return import("./enrichment/onboarding.js");
 }

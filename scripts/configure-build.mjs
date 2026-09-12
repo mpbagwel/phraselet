@@ -25,5 +25,7 @@ if (aiEnrichment) {
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 fs.writeFileSync(
   path.join(stagingDirectory, "src", "features.js"),
-  `export const FEATURES = Object.freeze({\n  aiEnrichment: ${aiEnrichment}\n});\n\nexport async function loadEnrichmentProvider() {\n  if (!FEATURES.aiEnrichment) {\n    return null;\n  }\n\n  return import(\"./enrichment/openai.js\");\n}\n\nexport async function loadEnrichmentOptions() {\n  if (!FEATURES.aiEnrichment) {\n    return null;\n  }\n\n  return import(\"./enrichment/options.js\");\n}\n`
+  aiEnrichment
+    ? `export const FEATURES = Object.freeze({\n  aiEnrichment: true\n});\n\nexport async function loadEnrichmentRuntime() {\n  return import(\"./enrichment/background.js\");\n}\n\nexport async function loadEnrichmentOptions() {\n  return import(\"./enrichment/options.js\");\n}\n\nexport async function loadEnrichmentOnboarding() {\n  return import(\"./enrichment/onboarding.js\");\n}\n`
+    : `export const FEATURES = Object.freeze({\n  aiEnrichment: false\n});\n\nexport async function loadEnrichmentRuntime() {\n  return null;\n}\n\nexport async function loadEnrichmentOptions() {\n  return null;\n}\n\nexport async function loadEnrichmentOnboarding() {\n  return null;\n}\n`
 );

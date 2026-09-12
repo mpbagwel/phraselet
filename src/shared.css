@@ -380,7 +380,7 @@ kbd {
 .filter-row select:focus { box-shadow: none; }
 
 #status-filter {
-  width: 112px;
+  width: 120px;
   border-left: 1px solid var(--line);
   border-radius: 0;
   padding-left: 8px;
