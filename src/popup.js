@@ -650,7 +650,7 @@ function renderCardEditor(card, cardId, panelId) {
           <input name="selectedText" type="text" maxlength="500" value="${escapeAttribute(card.selectedText)}" required>
         </label>
         <label>
-          <span>Personal note</span>
+          <span>Note</span>
           <textarea name="note" maxlength="2000" rows="3">${escapeHtml(card.note)}</textarea>
         </label>
         <label>

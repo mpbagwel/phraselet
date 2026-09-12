@@ -1,10 +1,10 @@
-# Phraselet Chrome Extension
+# Phraselet for Chrome on macOS
 
-Phraselet is a local-first Chrome extension for saving words and phrases as you encounter them online. It captures the selected text, source URL, page title, and surrounding context for later organization and review.
+Phraselet is a macOS-first, local-first Chrome extension for saving words and phrases as you encounter them online. It captures the selected text, source URL, page title, and surrounding context for later organization and review. Windows and Linux are supported too.
 
-## Install locally
+## Install on macOS
 
-1. Open Chrome and visit `chrome://extensions`.
+1. In Chrome, visit `chrome://extensions`.
 2. Enable **Developer mode**.
 3. Choose **Load unpacked**.
 4. Select this repository folder.
@@ -12,8 +12,10 @@ Phraselet is a local-first Chrome extension for saving words and phrases as you 
 ## Use it
 
 1. Highlight a word or phrase on any webpage.
-2. Press `Alt+Shift+P` (`Option+Shift+P` on macOS) or right-click and choose **Save to Phraselet**. You can change the shortcut from Settings.
+2. Press `Option+Shift+P` or right-click and choose **Save to Phraselet**. You can change the shortcut from Settings. On Windows and Linux, the default is `Alt+Shift+P`.
 3. Open the extension popup to review saved cards.
+
+Selections over 500 characters are shortened at the nearest word boundary before they are saved.
 
 Cards are stored in `chrome.storage.local` on your machine. Phraselet accesses page content only when you invoke a save action; it does not install a persistent script on every site.
 
