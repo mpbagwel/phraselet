@@ -152,7 +152,10 @@ async function openPhraseletPopup(windowId) {
 
 async function saveSelectionFromTab(tabId, fallback) {
   const payload = await getSelectionPayload(tabId, fallback);
-  const selectedText = cleanText(payload.selectedText).slice(0, MAX_PHRASE_LENGTH);
+  const fullSelection = cleanText(payload.selectedText);
+  const selectionTruncated = Boolean(payload.selectionTruncated)
+    || fullSelection.length > MAX_PHRASE_LENGTH;
+  const selectedText = truncatePhrase(fullSelection, MAX_PHRASE_LENGTH);
 
   if (!selectedText) {
     return { ok: false, error: "Select a word or phrase first." };
@@ -178,6 +181,7 @@ async function saveSelectionFromTab(tabId, fallback) {
     return {
       ok: true,
       duplicate: true,
+      truncated: selectionTruncated,
       cardId: existingCard.id,
       selectedText: truncateText(selectedText, 80)
     };
@@ -209,12 +213,19 @@ async function saveSelectionFromTab(tabId, fallback) {
     enrichExistingCard(card.id).catch(() => undefined);
   }
 
-  return { ok: true, cardId: card.id, selectedText: truncateText(selectedText, 80) };
+  return {
+    ok: true,
+    truncated: selectionTruncated,
+    cardId: card.id,
+    selectedText: truncateText(selectedText, 80)
+  };
 }
 
 async function showCaptureToast(tabId, result, frameId) {
-  const message = result.ok
-    ? `${result.duplicate ? "Already saved" : "Saved"} "${result.selectedText}"`
+  const message = result.ok && result.truncated
+    ? `${result.duplicate ? "Already saved" : "Saved"} a shortened selection (${MAX_PHRASE_LENGTH}-character limit).`
+    : result.ok
+      ? `${result.duplicate ? "Already saved" : "Saved"} "${result.selectedText}"`
     : result.error;
 
   try {
@@ -271,6 +282,13 @@ function readSelectionFromPage() {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
+  const selectionDetails = (value) => {
+    const fullText = normalize(value, Number.MAX_SAFE_INTEGER);
+    return {
+      selectedText: shortenAtWord(fullText, 500),
+      selectionTruncated: fullText.length > 500
+    };
+  };
   const element = document.activeElement;
   const isTextControl = element instanceof HTMLTextAreaElement
     || element instanceof HTMLInputElement && /^(search|tel|text|url)$/i.test(element.type);
@@ -282,7 +300,7 @@ function readSelectionFromPage() {
         const contextStart = Math.max(0, selectionStart - 600);
         const contextEnd = Math.min(element.value.length, selectionEnd + 600);
         return {
-          selectedText: normalize(element.value.slice(selectionStart, selectionEnd), 500),
+          ...selectionDetails(element.value.slice(selectionStart, selectionEnd)),
           contextText: normalize(element.value.slice(contextStart, contextEnd), 1200),
           sourceTitle: normalize(document.title, 300),
           sourceUrl: normalize(location.href, 2048)
@@ -294,7 +312,7 @@ function readSelectionFromPage() {
   }
 
   const selection = window.getSelection();
-  const selectedText = normalize(selection?.toString(), 500);
+  const { selectedText, selectionTruncated } = selectionDetails(selection?.toString());
   let contextText = "";
 
   if (selectedText && selection?.rangeCount) {
@@ -306,6 +324,7 @@ function readSelectionFromPage() {
 
   return {
     selectedText,
+    selectionTruncated,
     contextText,
     sourceTitle: normalize(document.title, 300),
     sourceUrl: normalize(location.href, 2048)
@@ -322,6 +341,17 @@ function readSelectionFromPage() {
     const start = Math.max(0, index - 500);
     const end = Math.min(text.length, index + phrase.length + 500);
     return text.slice(start, end);
+  }
+
+  function shortenAtWord(text, maxLength) {
+    if (text.length <= maxLength) {
+      return text;
+    }
+    const candidate = text.slice(0, maxLength);
+    const lastSpace = candidate.lastIndexOf(" ");
+    return lastSpace >= Math.floor(maxLength * 0.8)
+      ? candidate.slice(0, lastSpace)
+      : candidate;
   }
 }
 
@@ -679,6 +709,19 @@ function truncateText(value, maxLength) {
   }
 
   return `${text.slice(0, maxLength - 3)}...`;
+}
+
+function truncatePhrase(value, maxLength) {
+  const text = cleanText(value);
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  const candidate = text.slice(0, maxLength);
+  const lastSpace = candidate.lastIndexOf(" ");
+  return lastSpace >= Math.floor(maxLength * 0.8)
+    ? candidate.slice(0, lastSpace)
+    : candidate;
 }
 
 function cardIdentity(selectedText, sourceUrl) {

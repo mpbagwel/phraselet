@@ -1,4 +1,5 @@
 import { loadEnrichmentOptions } from "./features.js";
+import { renderAssignedShortcut } from "./shortcut.js";
 
 const SETTINGS_KEY = "phraselet.settings";
 
@@ -6,6 +7,7 @@ const afterSaveEl = document.querySelector("#after-save");
 const saveEl = document.querySelector("#save-options");
 const statusEl = document.querySelector("#status");
 const onboardingEl = document.querySelector("#view-onboarding");
+const changeShortcutEl = document.querySelector("#change-shortcut");
 let enrichmentOptions = null;
 
 document.addEventListener("DOMContentLoaded", init);
@@ -15,8 +17,12 @@ onboardingEl.addEventListener("click", () => {
     url: chrome.runtime.getURL("onboarding.html")
   });
 });
+changeShortcutEl.addEventListener("click", () => {
+  chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
+});
 
 async function init() {
+  renderAssignedShortcut();
   const settings = await getSettings();
   afterSaveEl.value = normalizeAfterSave(settings.afterSave);
 

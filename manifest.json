@@ -31,8 +31,8 @@
   "commands": {
     "save-selected-snippet": {
       "suggested_key": {
-        "default": "Alt+Shift+S",
-        "mac": "Alt+Shift+S"
+        "default": "Alt+Shift+P",
+        "mac": "Alt+Shift+P"
       },
       "description": "Save selected snippet to Phraselet"
     }

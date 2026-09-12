@@ -1,10 +1,13 @@
 import { FEATURES } from "./features.js";
+import { renderAssignedShortcut } from "./shortcut.js";
 
 const ONBOARDING_KEY = "phraselet.onboarding";
 
 const finishEl = document.querySelector("#onboarding-finish");
 const settingsEl = document.querySelector("#onboarding-settings");
 const statusEl = document.querySelector("#onboarding-status");
+
+renderAssignedShortcut();
 
 if (FEATURES.aiEnrichment) {
   document.querySelector("#onboarding-third-title").textContent = "Explain when you want";

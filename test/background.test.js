@@ -273,6 +273,7 @@ test("limits captured page data before saving it", async () => {
   const [card] = localStorage["phraselet.cards"];
 
   assert.equal(result.ok, true);
+  assert.equal(result.truncated, true);
   assert.equal(card.selectedText.length, 500);
   assert.equal(card.contextText.length, 1200);
   assert.equal(card.sourceTitle.length, 300);

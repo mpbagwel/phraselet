@@ -16,21 +16,22 @@
           <p id="card-count">No saved phrases yet</p>
         </div>
       </div>
-      <button id="open-options" class="icon-button" type="button" title="Open settings" aria-label="Open Phraselet settings">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z"/><path d="M19.4 13.5c.05-.32.1-.66.1-1s-.04-.68-.1-1l2.1-1.64-2-3.46-2.47 1a7.7 7.7 0 0 0-1.73-1L14.92 3h-4l-.38 2.4c-.62.25-1.2.59-1.73 1l-2.47-1-2 3.46 2.1 1.64c-.06.32-.1.66-.1 1s.04.68.1 1l-2.1 1.64 2 3.46 2.47-1c.53.42 1.11.75 1.73 1l.38 2.4h4l.38-2.4c.62-.25 1.2-.58 1.73-1l2.47 1 2-3.46-2.1-1.64Z"/></svg>
-      </button>
+      <div class="popup-header-actions">
+        <button id="save-selection" class="primary-button quick-capture-button" type="button" title="Save the active selection">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Save</span>
+        </button>
+        <button id="open-options" class="icon-button" type="button" title="Open settings" aria-label="Open Phraselet settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z"/><path d="M19.4 13.5c.05-.32.1-.66.1-1s-.04-.68-.1-1l2.1-1.64-2-3.46-2.47 1a7.7 7.7 0 0 0-1.73-1L14.92 3h-4l-.38 2.4c-.62.25-1.2.59-1.73 1l-2.47-1-2 3.46 2.1 1.64c-.06.32-.1.66-.1 1s.04.68.1 1l-2.1 1.64 2 3.46 2.47-1c.53.42 1.11.75 1.73 1l.38 2.4h4l.38-2.4c.62.25 1.2-.58 1.73-1l2.47 1 2-3.46-2.1-1.64Z"/></svg>
+        </button>
+      </div>
     </header>
 
-    <section class="command-panel" aria-label="Capture and search">
-      <button id="save-selection" class="primary-button capture-button" type="button">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        <span>Save selection</span>
-        <kbd aria-label="Alt or Option Shift S">Alt/⌥ ⇧ S</kbd>
-      </button>
+    <section class="command-panel" aria-label="Search phrases">
       <div class="search-field">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
         <label class="sr-only" for="search">Search saved phrases</label>
-        <input id="search" type="search" placeholder="Search your phrases…" autocomplete="off">
+        <input id="search" type="search" placeholder="Search phrases, notes, or context…" autocomplete="off">
       </div>
     </section>
 
@@ -40,6 +41,12 @@
         <label class="sr-only" for="tag-filter">Filter by tag</label>
         <select id="tag-filter" aria-label="Filter by tag">
           <option value="">All tags</option>
+        </select>
+        <label class="sr-only" for="status-filter">Filter by learning status</label>
+        <select id="status-filter" aria-label="Filter by learning status">
+          <option value="">All statuses</option>
+          <option value="learning">Learning</option>
+          <option value="known">Known</option>
         </select>
         <button id="manage-tag" class="text-button" type="button" disabled aria-expanded="false" aria-controls="tag-manager">Manage</button>
       </section>

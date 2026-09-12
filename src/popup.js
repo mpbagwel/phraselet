@@ -1,7 +1,9 @@
 import { FEATURES } from "./features.js";
+import { createExportPayload, EXPORT_SCHEMA_VERSION } from "./export.js";
+import { rankCards } from "./search.js";
 
 const CARDS_KEY = "phraselet.cards";
-const IMPORT_SCHEMA_VERSION = 1;
+const IMPORT_SCHEMA_VERSION = EXPORT_SCHEMA_VERSION;
 const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_IMPORT_CARDS = 5000;
 const MAX_PHRASE_LENGTH = 500;
@@ -22,6 +24,7 @@ const cardsEl = document.querySelector("#cards");
 const countEl = document.querySelector("#card-count");
 const searchEl = document.querySelector("#search");
 const tagFilterEl = document.querySelector("#tag-filter");
+const statusFilterEl = document.querySelector("#status-filter");
 const tagSuggestionsEl = document.querySelector("#tag-suggestions");
 const manageTagEl = document.querySelector("#manage-tag");
 const tagManagerEl = document.querySelector("#tag-manager");
@@ -86,18 +89,20 @@ saveSelectionEl.addEventListener("click", async () => {
     });
 
     setCaptureButtonLabel(result?.ok
-      ? result.duplicate ? "Already saved" : "Saved"
-      : "Save selection");
+      ? result.truncated ? "Shortened" : result.duplicate ? "Already saved" : "Saved"
+      : "Save");
     if (!result?.ok) {
       showLibraryStatus(result?.error || "Could not save the selection.", true);
+    } else if (result.truncated) {
+      showLibraryStatus(`Saved a shortened selection (${MAX_PHRASE_LENGTH}-character limit).`);
     }
   } catch {
-    setCaptureButtonLabel("Save selection");
+    setCaptureButtonLabel("Save");
     showLibraryStatus("Could not reach Phraselet. Reload the extension and try again.", true);
   } finally {
     saveSelectionEl.disabled = false;
     setTimeout(() => {
-      setCaptureButtonLabel("Save selection");
+      setCaptureButtonLabel("Save");
     }, 1200);
   }
 });
@@ -123,6 +128,7 @@ bulkMarkLearningEl.addEventListener("click", () => applyBulkAction("mark_learnin
 bulkDeleteEl.addEventListener("click", deleteSelectedCards);
 
 searchEl.addEventListener("input", render);
+statusFilterEl.addEventListener("change", render);
 tagFilterEl.addEventListener("change", () => {
   closeTagManager();
   render();
@@ -402,6 +408,7 @@ function setBulkControlsDisabled(disabled) {
 function focusCard(id) {
   searchEl.value = "";
   tagFilterEl.value = "";
+  statusFilterEl.value = "";
   closeTagManager();
   render();
 
@@ -418,11 +425,12 @@ function focusCard(id) {
 
 function render() {
   renderTagFilter();
-  const query = searchEl.value.trim().toLowerCase();
+  const query = searchEl.value.trim();
   const selectedTag = normalizeTagKey(tagFilterEl.value);
-  const visibleCards = getVisibleCards(query, selectedTag);
+  const selectedStatus = statusFilterEl.value;
+  const visibleCards = getVisibleCards(query, selectedTag, selectedStatus);
 
-  countEl.textContent = query || selectedTag
+  countEl.textContent = query || selectedTag || selectedStatus
     ? `${visibleCards.length} of ${cards.length} phrases`
     : cards.length === 1 ? "1 saved phrase" : `${cards.length} saved phrases`;
   exportCardsEl.disabled = cards.length === 0;
@@ -430,7 +438,7 @@ function render() {
   renderBulkActions(visibleCards);
 
   if (!visibleCards.length) {
-    cardsEl.innerHTML = emptyState(query, selectedTag);
+    cardsEl.innerHTML = emptyState(query, selectedTag, selectedStatus);
     return;
   }
 
@@ -438,22 +446,15 @@ function render() {
 }
 
 function getVisibleCards(
-  query = searchEl.value.trim().toLowerCase(),
-  selectedTag = normalizeTagKey(tagFilterEl.value)
+  query = searchEl.value.trim(),
+  selectedTag = normalizeTagKey(tagFilterEl.value),
+  selectedStatus = statusFilterEl.value
 ) {
-  return cards.filter((card) => {
-    const tags = normalizeTags(card.tags);
-    const haystack = [
-      card.selectedText,
-      card.contextText,
-      card.sourceTitle,
-      ...(FEATURES.aiEnrichment ? [card.ai?.summary, card.ai?.contextMeaning] : []),
-      ...tags
-    ].join(" ").toLowerCase();
-    const matchesTag = !selectedTag
-      || tags.some((tag) => normalizeTagKey(tag) === selectedTag);
-
-    return haystack.includes(query) && matchesTag;
+  return rankCards(cards, {
+    query,
+    tag: selectedTag,
+    status: selectedStatus,
+    includeEnrichment: FEATURES.aiEnrichment
   });
 }
 
@@ -694,12 +695,12 @@ function toggleCardPanel(button) {
   button.querySelector(".disclosure-symbol").textContent = isOpen ? "−" : "+";
 }
 
-function emptyState(query, selectedTag) {
-  const filtered = query || selectedTag;
+function emptyState(query, selectedTag, selectedStatus) {
+  const filtered = query || selectedTag || selectedStatus;
   return `
     <section class="empty-state">
       <h2>${filtered ? "No matches" : "Save what made you pause."}</h2>
-      <p>${filtered ? "Try a different search or tag." : "Highlight text on a page, press Alt/Option+Shift+S, or right-click and choose Save to Phraselet."}</p>
+      <p>${filtered ? "Try a broader search or clear a filter." : "Highlight text on a page, use your Phraselet shortcut, or right-click and choose Save to Phraselet."}</p>
     </section>
   `;
 }
@@ -827,11 +828,7 @@ function exportCards() {
     return;
   }
 
-  const payload = {
-    schemaVersion: 1,
-    exportedAt: new Date().toISOString(),
-    cards
-  };
+  const payload = createExportPayload(cards);
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json"
   });
@@ -905,7 +902,7 @@ function extractImportCards(payload) {
     return payload;
   }
 
-  if (payload && typeof payload === "object" && payload.schemaVersion !== IMPORT_SCHEMA_VERSION) {
+  if (payload && typeof payload === "object" && ![1, IMPORT_SCHEMA_VERSION].includes(payload.schemaVersion)) {
     throw new Error("This Phraselet export version is not supported.");
   }
 
@@ -926,7 +923,8 @@ function normalizeImportedCard(card) {
     return null;
   }
 
-  const ai = card.ai && typeof card.ai === "object" ? card.ai : {};
+  const enrichment = card.enrichment ?? card.ai;
+  const ai = enrichment && typeof enrichment === "object" ? enrichment : {};
 
   return {
     id: cleanText(card.id).slice(0, 100) || crypto.randomUUID(),

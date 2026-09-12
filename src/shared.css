@@ -269,6 +269,26 @@ input:focus, select:focus, textarea:focus {
   font-size: 11.5px;
 }
 
+.popup-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quick-capture-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  gap: 5px;
+  padding: 0 11px;
+}
+
+.quick-capture-button svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.3;
+}
+
 .command-panel {
   display: grid;
   gap: 9px;
@@ -324,15 +344,15 @@ kbd {
 
 .library-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   padding: 0 16px 10px;
 }
 
 .filter-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   min-width: 0;
   border: 1px solid var(--line);
@@ -359,9 +379,18 @@ kbd {
 
 .filter-row select:focus { box-shadow: none; }
 
+#status-filter {
+  max-width: 96px;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  padding-left: 8px;
+  font-size: 11.5px;
+}
+
 .library-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 5px;
 }
 
@@ -1017,6 +1046,12 @@ details[open] > summary { color: var(--ink-soft); }
 
 .onboarding-link {
   margin-top: 12px;
+}
+
+.options-help-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
 }
 
 .options-panel {
