@@ -46,3 +46,7 @@ See `RELEASE.md` for the store-submission checklist. The [Phraselet website](htt
 - Add collections
 - Add a side panel reading companion
 - Sync cards across browsers
+
+## License
+
+Phraselet is available under the [MIT License](LICENSE).
