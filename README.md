@@ -39,7 +39,7 @@ Run `npm run check` to syntax-check the extension scripts and execute the automa
 
 The source tree defaults to the base feature configuration. The AI development build adds its provider, settings interface, and OpenAI host permission only during packaging; it is not intended for store submission.
 
-See `RELEASE.md` for the store-submission checklist and `PRIVACY.md` for the draft privacy policy.
+See `RELEASE.md` for the store-submission checklist. The [Phraselet website](https://phraselet-cards.dreamingbigdreams.chatgpt.site) includes the public [privacy policy](https://phraselet-cards.dreamingbigdreams.chatgpt.site/privacy/) and [support page](https://phraselet-cards.dreamingbigdreams.chatgpt.site/support/); `PRIVACY.md` is the source policy kept with the extension.
 
 ## Possible post-release additions
 
