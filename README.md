@@ -27,7 +27,9 @@ Cards are stored in `chrome.storage.local` on your machine. Phraselet accesses p
 - Local card library with editable notes, tags, filtering, and related phrases
 - Bulk selection for tagging, status changes, and deletion
 - Tag autocomplete, rename, and delete controls
-- JSON import/export for backing up or moving saved phrases
+- Restorable JSON backups plus Markdown and CSV exports
+- Copy or export only the phrases selected in bulk mode
+- A quiet backup reminder after established libraries go 30 days without a JSON backup
 - Configurable confirmation or popup after saving
 - First-install welcome guide with capture and data-handling details
 - Gesture-scoped page access, bounded capture/import data, and restricted extension storage

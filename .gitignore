@@ -6,4 +6,4 @@ coverage/
 .env
 .env.*
 !.env.example
-/smoke-test/phraselet-export-*.json
+smoke-test/

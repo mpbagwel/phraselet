@@ -149,6 +149,7 @@ mark {
 
 .bulk-demo .demo-note::before { content: "Organize several phrases in one pass."; }
 .library-demo .demo-note::before { content: "Search, filter, and keep the source attached."; }
+.portability-demo .demo-note::before { content: "Your library, in formats you can use anywhere."; }
 
 .promo-stage {
   width: 440px;

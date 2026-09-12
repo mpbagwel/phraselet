@@ -28,7 +28,7 @@ The public version of Phraselet does not transmit your saved library to Phrasele
 
 ## Your controls
 
-You can edit or delete saved phrases, delete multiple phrases at once, and export your complete library as a JSON backup. You can restore compatible backups through the import feature. Clearing Phraselet's extension data or uninstalling the extension removes its locally stored data from that Chrome profile.
+You can edit or delete saved phrases, delete multiple phrases at once, export a restorable JSON backup, and create portable Markdown or CSV files. When you explicitly choose Copy in bulk-selection mode, Phraselet writes the selected phrase text to your system clipboard. You can restore compatible JSON backups through the import feature. Clearing Phraselet's extension data or uninstalling the extension removes its locally stored data from that Chrome profile.
 
 ## Data security
 

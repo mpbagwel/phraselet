@@ -394,6 +394,43 @@ kbd {
   gap: 5px;
 }
 
+.export-menu-shell { position: relative; }
+
+.export-menu {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 226px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow-md);
+}
+
+.export-menu[hidden] { display: none; }
+
+.export-menu button {
+  display: grid;
+  width: 100%;
+  min-height: 0;
+  gap: 1px;
+  border: 0;
+  border-radius: 0;
+  padding: 9px 11px;
+  text-align: left;
+}
+
+.export-menu button + button { border-top: 1px solid var(--line); }
+
+.export-menu strong { font-size: 12px; }
+
+.export-menu span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .selection-toggle {
   min-width: 48px;
   border-color: var(--line);
@@ -416,6 +453,47 @@ kbd {
   height: 16px;
 }
 
+.backup-reminder {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px 10px;
+  border: 1px solid #c4d4dc;
+  border-radius: var(--radius-md);
+  padding: 10px 11px;
+  background: var(--accent-soft);
+}
+
+.backup-reminder[hidden] { display: none; }
+
+.backup-reminder > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.backup-reminder strong {
+  display: block;
+  color: var(--accent-dark);
+  font-size: 12px;
+}
+
+.backup-reminder p {
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+
+.backup-reminder-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.backup-reminder-actions button {
+  min-height: 32px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
 .bulk-actions {
   position: sticky;
   z-index: 4;
@@ -435,6 +513,7 @@ kbd {
 
 .bulk-selection-row,
 .bulk-tag-row,
+.bulk-export-row,
 .bulk-state-row {
   display: flex;
   align-items: center;
@@ -484,11 +563,21 @@ kbd {
 }
 
 .bulk-tag-row button,
+.bulk-export-row button,
 .bulk-state-row button {
   min-height: 34px;
   padding: 0 10px;
   font-size: 11.5px;
 }
+
+.bulk-export-row select {
+  min-height: 34px;
+  flex: 1;
+  padding: 0 25px 0 9px;
+  font-size: 11.5px;
+}
+
+.bulk-export-row #bulk-copy { flex: 1; }
 
 .bulk-state-row button { flex: 1; }
 .bulk-state-row .danger-button { flex: 0 0 auto; }

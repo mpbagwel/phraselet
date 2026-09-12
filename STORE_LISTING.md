@@ -32,9 +32,13 @@ Use Phraselet to:
 - Add notes and tags
 - Mark phrases as learning or known
 - Organize several phrases at once with bulk actions
-- Export and restore a portable JSON backup
+- Export a restorable JSON backup
+- Take your library to notes apps and spreadsheets with Markdown and CSV
+- Copy or export only the phrases you select
 
 Phraselet is local-first. The public version does not require an account, use analytics, show advertising, or send your phrase library to a remote service.
+
+Your library is not trapped in Phraselet. Keep a complete JSON backup for restoration, move readable Markdown into your notes, open CSV in a spreadsheet, or copy a focused selection wherever you need it.
 
 Selections longer than 500 characters are shortened at a word boundary.
 
@@ -54,11 +58,11 @@ Phraselet adds **Save to Phraselet** to Chrome's context menu when text is selec
 
 ### storage
 
-Phraselet stores saved phrases, notes, tags, learning status, source information, and preferences locally in Chrome.
+Phraselet stores saved phrases, notes, tags, learning status, source information, backup-reminder timing, and preferences locally in Chrome.
 
 ## Privacy dashboard answers
 
-Phraselet handles website content and web history data only to save the user-selected phrase, nearby context, page title, and source URL. The public version stores that information locally and does not transmit it to the developer or a third party.
+Phraselet handles website content and web history data only to save the user-selected phrase, nearby context, page title, and source URL. The public version stores that information locally and does not transmit it to the developer or a third party. Export and clipboard actions occur only when the user explicitly invokes them.
 
 Phraselet does not use collected information for advertising, creditworthiness, lending, or purposes unrelated to its single purpose. Humans do not read user data because Phraselet does not receive the locally stored library.
 
@@ -70,6 +74,7 @@ Prepared assets:
 
 - `store-assets/screenshots/01-capture.png` — capture feedback on a webpage
 - `store-assets/screenshots/02-library.png` — search, filters, notes, and tags
-- `store-assets/screenshots/03-bulk-actions.png` — multi-select tagging, status, and deletion
+- `store-assets/screenshots/03-bulk-actions.png` — multi-select copy, export, tagging, status, and deletion
+- `store-assets/screenshots/04-portability.png` — JSON, Markdown, CSV, and backup reminder
 - `store-assets/promo-440x280.png` — small promotional image
 - `assets/icon-128.png` — padded store icon

@@ -1,8 +1,18 @@
 import { FEATURES } from "./features.js";
-import { createExportPayload, EXPORT_SCHEMA_VERSION } from "./export.js";
+import {
+  createExportFile,
+  createPlainTextExport,
+  EXPORT_SCHEMA_VERSION
+} from "./export.js";
+import {
+  createBackupState,
+  createSnoozedBackupState,
+  shouldShowBackupReminder
+} from "./backup.js";
 import { rankCards } from "./search.js";
 
 const CARDS_KEY = "phraselet.cards";
+const BACKUP_REMINDER_KEY = "phraselet.backupReminder";
 const IMPORT_SCHEMA_VERSION = EXPORT_SCHEMA_VERSION;
 const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_IMPORT_CARDS = 5000;
@@ -34,8 +44,13 @@ const deleteTagEl = document.querySelector("#delete-tag");
 const saveSelectionEl = document.querySelector("#save-selection");
 const optionsEl = document.querySelector("#open-options");
 const exportCardsEl = document.querySelector("#export-cards");
+const exportMenuShellEl = document.querySelector("#export-menu-shell");
+const exportMenuEl = document.querySelector("#export-menu");
 const importCardsEl = document.querySelector("#import-cards");
 const importFileEl = document.querySelector("#import-file");
+const backupReminderEl = document.querySelector("#backup-reminder");
+const backupNowEl = document.querySelector("#backup-now");
+const backupLaterEl = document.querySelector("#backup-later");
 const libraryStatusEl = document.querySelector("#library-status");
 const toggleSelectionEl = document.querySelector("#toggle-selection");
 const bulkActionsEl = document.querySelector("#bulk-actions");
@@ -46,11 +61,15 @@ const clearSelectionEl = document.querySelector("#clear-selection");
 const bulkTagNameEl = document.querySelector("#bulk-tag-name");
 const bulkAddTagEl = document.querySelector("#bulk-add-tag");
 const bulkRemoveTagEl = document.querySelector("#bulk-remove-tag");
+const bulkCopyEl = document.querySelector("#bulk-copy");
+const bulkExportFormatEl = document.querySelector("#bulk-export-format");
+const bulkExportEl = document.querySelector("#bulk-export");
 const bulkMarkKnownEl = document.querySelector("#bulk-mark-known");
 const bulkMarkLearningEl = document.querySelector("#bulk-mark-learning");
 const bulkDeleteEl = document.querySelector("#bulk-delete");
 
 let cards = [];
+let backupReminder = {};
 let pendingTagSelection = null;
 let selectionMode = false;
 const selectedCardIds = new Set();
@@ -58,11 +77,18 @@ const selectedCardIds = new Set();
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
-  cards = await getCards();
+  [cards, backupReminder] = await Promise.all([
+    getCards(),
+    getBackupReminder()
+  ]);
   render();
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === "local" && changes[CARDS_KEY]) {
+    if (areaName !== "local") {
+      return;
+    }
+
+    if (changes[CARDS_KEY]) {
       cards = changes[CARDS_KEY].newValue || [];
       if (!cards.length) {
         selectionMode = false;
@@ -74,8 +100,13 @@ async function init() {
           selectedCardIds.delete(id);
         }
       });
-      render();
     }
+
+    if (changes[BACKUP_REMINDER_KEY]) {
+      backupReminder = normalizeBackupReminder(changes[BACKUP_REMINDER_KEY].newValue);
+    }
+
+    render();
   });
 }
 
@@ -111,7 +142,10 @@ optionsEl.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
-exportCardsEl.addEventListener("click", exportCards);
+exportCardsEl.addEventListener("click", toggleExportMenu);
+exportMenuEl.addEventListener("click", exportFromMenu);
+document.addEventListener("click", closeExportMenuFromOutside);
+document.addEventListener("keydown", closeExportMenuWithKeyboard);
 
 importCardsEl.addEventListener("click", () => {
   importFileEl.click();
@@ -123,9 +157,13 @@ bulkSelectAllEl.addEventListener("change", toggleAllMatchingCards);
 clearSelectionEl.addEventListener("click", clearBulkSelection);
 bulkAddTagEl.addEventListener("click", () => applyBulkAction("add_tag"));
 bulkRemoveTagEl.addEventListener("click", () => applyBulkAction("remove_tag"));
+bulkCopyEl.addEventListener("click", copySelectedPhrases);
+bulkExportEl.addEventListener("click", exportSelectedPhrases);
 bulkMarkKnownEl.addEventListener("click", () => applyBulkAction("mark_known"));
 bulkMarkLearningEl.addEventListener("click", () => applyBulkAction("mark_learning"));
 bulkDeleteEl.addEventListener("click", deleteSelectedCards);
+backupNowEl.addEventListener("click", exportBackupNow);
+backupLaterEl.addEventListener("click", snoozeBackupReminder);
 
 searchEl.addEventListener("input", render);
 statusFilterEl.addEventListener("change", render);
@@ -397,6 +435,9 @@ function setBulkControlsDisabled(disabled) {
     bulkTagNameEl,
     bulkAddTagEl,
     bulkRemoveTagEl,
+    bulkCopyEl,
+    bulkExportFormatEl,
+    bulkExportEl,
     bulkMarkKnownEl,
     bulkMarkLearningEl,
     bulkDeleteEl
@@ -435,6 +476,10 @@ function render() {
     : cards.length === 1 ? "1 saved phrase" : `${cards.length} saved phrases`;
   exportCardsEl.disabled = cards.length === 0;
   toggleSelectionEl.disabled = cards.length === 0 && !selectionMode;
+  if (!cards.length) {
+    closeExportMenu();
+  }
+  renderBackupReminder();
   renderBulkActions(visibleCards);
 
   if (!visibleCards.length) {
@@ -483,6 +528,9 @@ function renderBulkActions(visibleCards) {
   bulkTagNameEl.disabled = !hasSelection;
   bulkAddTagEl.disabled = !hasSelection;
   bulkRemoveTagEl.disabled = !hasSelection;
+  bulkCopyEl.disabled = !hasSelection;
+  bulkExportFormatEl.disabled = !hasSelection;
+  bulkExportEl.disabled = !hasSelection;
   bulkMarkKnownEl.disabled = !hasSelection;
   bulkMarkLearningEl.disabled = !hasSelection;
   bulkDeleteEl.disabled = !hasSelection;
@@ -810,6 +858,42 @@ async function getCards() {
   return Array.isArray(result[CARDS_KEY]) ? result[CARDS_KEY] : [];
 }
 
+async function getBackupReminder() {
+  const result = await chrome.storage.local.get(BACKUP_REMINDER_KEY);
+  return normalizeBackupReminder(result[BACKUP_REMINDER_KEY]);
+}
+
+function normalizeBackupReminder(value) {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  return {
+    lastBackupAt: typeof value.lastBackupAt === "string" ? value.lastBackupAt : "",
+    snoozedUntil: typeof value.snoozedUntil === "string" ? value.snoozedUntil : ""
+  };
+}
+
+function renderBackupReminder() {
+  backupReminderEl.hidden = selectionMode || !shouldShowBackupReminder(cards, backupReminder);
+}
+
+async function markBackupCreated() {
+  backupReminder = createBackupState();
+  await chrome.storage.local.set({ [BACKUP_REMINDER_KEY]: backupReminder });
+  renderBackupReminder();
+}
+
+async function snoozeBackupReminder() {
+  try {
+    backupReminder = createSnoozedBackupState(backupReminder);
+    await chrome.storage.local.set({ [BACKUP_REMINDER_KEY]: backupReminder });
+    renderBackupReminder();
+    showLibraryStatus("Backup reminder snoozed for one week.");
+  } catch {
+    showLibraryStatus("Could not snooze the backup reminder.", true);
+  }
+}
+
 async function upsertCard(card) {
   const nextCards = [
     card,
@@ -822,25 +906,134 @@ async function deleteCard(id) {
   await saveCards(cards.filter((card) => card.id !== id));
 }
 
-function exportCards() {
-  if (!cards.length) {
+function toggleExportMenu() {
+  const shouldOpen = exportMenuEl.hidden;
+  exportMenuEl.hidden = !shouldOpen;
+  exportCardsEl.setAttribute("aria-expanded", String(shouldOpen));
+  if (shouldOpen) {
+    setTimeout(() => exportMenuEl.querySelector("button")?.focus(), 0);
+  }
+}
+
+function closeExportMenu() {
+  exportMenuEl.hidden = true;
+  exportCardsEl.setAttribute("aria-expanded", "false");
+}
+
+function closeExportMenuFromOutside(event) {
+  if (!exportMenuShellEl.contains(event.target)) {
+    closeExportMenu();
+  }
+}
+
+function closeExportMenuWithKeyboard(event) {
+  if (event.key === "Escape" && !exportMenuEl.hidden) {
+    closeExportMenu();
+    exportCardsEl.focus();
+  }
+}
+
+async function exportFromMenu(event) {
+  const button = event.target.closest("button[data-export-format]");
+  if (!button) {
+    return;
+  }
+
+  closeExportMenu();
+  await downloadCards(cards, button.dataset.exportFormat, {
+    completeBackup: button.dataset.exportFormat === "json"
+  });
+}
+
+async function exportSelectedPhrases() {
+  const selectedCards = getSelectedCards();
+  await downloadCards(selectedCards, bulkExportFormatEl.value, {
+    completeBackup: bulkExportFormatEl.value === "json" && selectedCards.length === cards.length,
+    selected: true
+  });
+}
+
+async function copySelectedPhrases() {
+  const selectedCards = getSelectedCards();
+  const text = createPlainTextExport(selectedCards);
+  if (!text) {
+    showLibraryStatus("Select at least one phrase to copy.", true);
+    return;
+  }
+
+  try {
+    await writeClipboardText(text);
+    showLibraryStatus(`Copied ${phraseCount(selectedCards.length)}.`);
+  } catch {
+    showLibraryStatus("Could not copy the selected phrases.", true);
+  }
+}
+
+async function exportBackupNow() {
+  backupNowEl.disabled = true;
+  try {
+    await downloadCards(cards, "json", { completeBackup: true });
+  } finally {
+    backupNowEl.disabled = false;
+  }
+}
+
+async function downloadCards(cardList, format, { completeBackup = false, selected = false } = {}) {
+  if (!cardList.length) {
     showLibraryStatus("No saved phrases to export.", true);
     return;
   }
 
-  const payload = createExportPayload(cards);
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json"
-  });
+  let file;
+  try {
+    file = createExportFile(cardList, format);
+  } catch (error) {
+    showLibraryStatus(error instanceof Error ? error.message : "Could not create the export.", true);
+    return;
+  }
+
+  const blob = new Blob([file.content], { type: file.mimeType });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `phraselet-export-${dateStamp()}.json`;
+  anchor.download = `phraselet-${selected ? "selection" : "export"}-${dateStamp()}.${file.extension}`;
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showLibraryStatus(`Exported ${phraseCount(cards.length)}.`);
+
+  if (completeBackup && format === "json") {
+    await markBackupCreated().catch(() => undefined);
+  }
+  showLibraryStatus(`Exported ${phraseCount(cardList.length)} as ${file.label}.`);
+}
+
+function getSelectedCards() {
+  return cards.filter((card) => selectedCardIds.has(card.id));
+}
+
+async function writeClipboardText(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Keep the user-initiated fallback below for older extension contexts.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) {
+    throw new Error("Clipboard unavailable.");
+  }
 }
 
 async function importCards() {
@@ -876,6 +1069,7 @@ async function importCards() {
     }
 
     await saveCards(importResult.cards);
+    await markBackupCreated().catch(() => undefined);
     showLibraryStatus(formatImportStatus(importResult));
   } catch (error) {
     const message = error instanceof SyntaxError
