@@ -380,7 +380,7 @@ kbd {
 .filter-row select:focus { box-shadow: none; }
 
 #status-filter {
-  max-width: 96px;
+  width: 112px;
   border-left: 1px solid var(--line);
   border-radius: 0;
   padding-left: 8px;
@@ -595,6 +595,13 @@ kbd {
   font-weight: 500;
   line-height: 1.25;
   overflow-wrap: anywhere;
+}
+
+.card-header h2 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
 }
 
 .status-badge {
