@@ -30,7 +30,7 @@ Use Phraselet to:
 
 - Search your saved phrases, notes, and source context
 - Add notes and tags
-- Mark phrases as learning or known
+- Archive phrases without deleting them, then restore them whenever needed
 - Organize several phrases at once with bulk actions
 - Export a restorable JSON backup
 - Take your library to notes apps and spreadsheets with Markdown and CSV
@@ -58,7 +58,7 @@ Phraselet adds **Save to Phraselet** to Chrome's context menu when text is selec
 
 ### storage
 
-Phraselet stores saved phrases, notes, tags, learning status, source information, backup-reminder timing, and preferences locally in Chrome.
+Phraselet stores saved phrases, notes, tags, archive state, source information, backup-reminder timing, and preferences locally in Chrome.
 
 ## Privacy dashboard answers
 

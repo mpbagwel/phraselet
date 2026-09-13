@@ -28,7 +28,7 @@ test("base exports use a neutral schema and omit empty enrichment metadata", () 
   const payload = createExportPayload([{
     id: "one",
     selectedText: "A phrase",
-    status: "learning",
+    status: "current",
     ai: {
       status: "not_requested",
       summary: "",
@@ -38,7 +38,7 @@ test("base exports use a neutral schema and omit empty enrichment metadata", () 
     }
   }], "2026-09-12T00:00:00.000Z");
 
-  assert.equal(EXPORT_SCHEMA_VERSION, 2);
+  assert.equal(EXPORT_SCHEMA_VERSION, 3);
   assert.equal(payload.cards[0].ai, undefined);
   assert.equal(payload.cards[0].enrichment, undefined);
 });
@@ -51,14 +51,14 @@ test("Markdown exports preserve useful phrase context in a readable structure", 
     sourceTitle: "Notes on language",
     sourceUrl: "https://example.com/language",
     createdAt: "2026-09-12T00:00:00.000Z",
-    status: "known",
+    status: "archived",
     note: "Return to *this* idea.",
     tags: ["philosophy", "language"]
   }], "2026-09-13T00:00:00.000Z");
 
   assert.match(output, /^# Phraselet export/m);
   assert.match(output, /> Language makes a world\./);
-  assert.match(output, /Status: Known/);
+  assert.match(output, /State: Archived/);
   assert.match(output, /Tags: philosophy, language/);
   assert.match(output, /Return to \\\*this\\\* idea\./);
   assert.match(output, /https:\/\/example\.com\/language/);
@@ -70,7 +70,7 @@ test("CSV exports quote fields, retain Unicode, and neutralize spreadsheet formu
     selectedText: "=IMPORTXML(\"https://example.com\")",
     contextText: "Café, context",
     sourceTitle: "A \"quoted\" title",
-    status: "learning",
+    status: "current",
     tags: ["one", "two"]
   }]);
 
@@ -91,7 +91,7 @@ test("plain-text copy includes only the selected phrase text", () => {
 
 test("export files use the expected portable extensions and MIME types", () => {
   const { createExportFile } = loadExportModule();
-  const cards = [{ selectedText: "A phrase", status: "learning" }];
+  const cards = [{ selectedText: "A phrase", status: "current" }];
 
   assert.equal(createExportFile(cards, "json").extension, "json");
   assert.equal(createExportFile(cards, "markdown").extension, "md");
@@ -115,4 +115,11 @@ test("existing enrichment is preserved under a provider-neutral field", () => {
   assert.equal(payload.cards[0].ai, undefined);
   assert.equal(payload.cards[0].enrichment.summary, "A saved explanation.");
   assert.doesNotMatch(serialized, /"ai"/);
+});
+
+test("legacy learning states export as current lifecycle values", () => {
+  const { createExportPayload } = loadExportModule();
+  const payload = createExportPayload([{ selectedText: "A phrase", status: "learning" }]);
+
+  assert.equal(payload.cards[0].status, "current");
 });

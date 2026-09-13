@@ -1,6 +1,6 @@
 # Phraselet Privacy Policy
 
-Last updated: September 12, 2026
+Last updated: September 13, 2026
 
 Phraselet is published by Phraselet. Support is available at [mpbagwell.dev@gmail.com](mailto:mpbagwell.dev@gmail.com).
 
@@ -13,7 +13,7 @@ When you ask Phraselet to save a selection, it may handle:
 - The text you selected
 - Nearby text used as source context
 - The source page title and URL
-- Notes, tags, and learning status you add
+- Notes, tags, and archive state you add
 - Extension preferences
 
 Phraselet stores this information in Chrome's local extension storage on your device. It is not designed to sync between browsers. Anyone with access to your unlocked device or Chrome profile may be able to access it.
@@ -28,7 +28,7 @@ The public version of Phraselet does not transmit your saved library to Phrasele
 
 ## Your controls
 
-You can edit or delete saved phrases, delete multiple phrases at once, export a restorable JSON backup, and create portable Markdown or CSV files. When you explicitly choose Copy in bulk-selection mode, Phraselet writes the selected phrase text to your system clipboard. You can restore compatible JSON backups through the import feature. Clearing Phraselet's extension data or uninstalling the extension removes its locally stored data from that Chrome profile.
+You can edit, archive, restore, or delete saved phrases; apply the same actions to several phrases at once; export a restorable JSON backup; and create portable Markdown or CSV files. When you explicitly choose Copy in bulk-selection mode, Phraselet writes the selected phrase text to your system clipboard. You can restore compatible JSON backups through the import feature. Clearing Phraselet's extension data or uninstalling the extension removes its locally stored data from that Chrome profile.
 
 ## Data security
 

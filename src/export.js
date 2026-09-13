@@ -1,4 +1,4 @@
-export const EXPORT_SCHEMA_VERSION = 2;
+export const EXPORT_SCHEMA_VERSION = 3;
 
 const EXPORT_FORMATS = Object.freeze({
   json: {
@@ -56,7 +56,7 @@ export function createMarkdownExport(cards, exportedAt = new Date().toISOString(
   cards.forEach((card, index) => {
     const enrichment = card.ai ?? card.enrichment ?? {};
     lines.push(`## Phrase ${index + 1}`, "", markdownQuote(card.selectedText), "");
-    lines.push(`- Status: ${card.status === "known" ? "Known" : "Learning"}`);
+    lines.push(`- State: ${normalizeCardStatus(card.status) === "archived" ? "Archived" : "Current"}`);
     if (card.tags?.length) {
       lines.push(`- Tags: ${card.tags.map(escapeMarkdown).join(", ")}`);
     }
@@ -117,7 +117,7 @@ export function createCsvExport(cards) {
       card.sourceUrl,
       card.note,
       Array.isArray(card.tags) ? card.tags.join("; ") : "",
-      card.status === "known" ? "known" : "learning",
+      normalizeCardStatus(card.status),
       card.createdAt,
       enrichment.summary,
       enrichment.contextMeaning,
@@ -138,6 +138,7 @@ export function createPlainTextExport(cards) {
 
 function serializeCard(card) {
   const { ai, ...baseCard } = card;
+  const normalizedCard = { ...baseCard, status: normalizeCardStatus(card.status) };
   const hasEnrichment = ai && (
     ai.summary
     || ai.contextMeaning
@@ -146,8 +147,12 @@ function serializeCard(card) {
   );
 
   return hasEnrichment
-    ? { ...baseCard, enrichment: ai }
-    : baseCard;
+    ? { ...normalizedCard, enrichment: ai }
+    : normalizedCard;
+}
+
+function normalizeCardStatus(status) {
+  return status === "archived" || status === "known" ? "archived" : "current";
 }
 
 function formatExportDate(value) {

@@ -30,9 +30,9 @@ async function finishOnboarding() {
       return;
     }
 
-    statusEl.textContent = "You're ready. You can close this page.";
+    statusEl.textContent = "You're ready — you can close this page";
   } catch {
-    statusEl.textContent = "You're ready. You can close this page.";
+    statusEl.textContent = "You're ready — you can close this page";
     finishEl.disabled = false;
   }
 }

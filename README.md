@@ -19,29 +19,44 @@ Selections over 500 characters are shortened at the nearest word boundary before
 
 Cards are stored in `chrome.storage.local` on your machine. Phraselet accesses page content only when you invoke a save action; it does not install a persistent script on every site.
 
-## Current MVP
+## Public Base build
 
 - Context-menu capture for highlighted text
 - Source title, URL, and nearby context capture
 - Duplicate-aware capture and import
 - Local card library with editable notes, tags, filtering, and related phrases
-- Bulk selection for tagging, status changes, and deletion
+- A Current default view plus Archived and All cards views
+- Single-card and bulk archive/restore controls; older Learning and Known states migrate to Current and Archived
+- Bulk selection for tagging, archiving, export, copy, and deletion
 - Tag autocomplete, rename, and delete controls
-- Restorable JSON backups plus Markdown and CSV exports
+- Restorable, versioned JSON backups plus export-only Markdown and CSV formats
 - Copy or export only the phrases selected in bulk mode
-- A quiet backup reminder after established libraries go 30 days without a JSON backup
+- A quiet backup reminder when a library of at least 10 phrases goes 30 days without a complete JSON backup; **Later** snoozes it for seven days
 - Configurable confirmation or popup after saving
 - First-install welcome guide with capture and data-handling details
 - Gesture-scoped page access, bounded capture/import data, and restricted extension storage
 - No backend service required
 
+JSON is the lossless backup format and Phraselet accepts compatible schema versions 1 through 3. Markdown and CSV are intended for notes apps, text editors, and spreadsheets; they are not imported back into Phraselet.
+
+## Build targets
+
+The source tree defaults to the Base feature configuration. `npm run package:base` creates the local-first Chrome Web Store ZIP without AI provider code, API-key controls, third-party host access, or a standing clipboard permission.
+
+`npm run package:ai-dev` creates a separate internal build that adds its enrichment interface, provider modules, API-key settings, and OpenAI host permission during packaging. It is an experimental development artifact, not a publicly supported edition or store-submission package.
+
 ## Development checks
 
-Run `npm run check` to syntax-check the extension scripts and execute the automated tests. The same command runs in GitHub Actions. Run `npm run package:base` to create the local-first store ZIP or `npm run package:ai-dev` to create the internal AI-enabled build.
+Run `npm run check` to syntax-check the extension scripts and execute the automated tests. The same command runs in GitHub Actions. The September 13, 2026 hardening run passed all 29 checks and rebuilt both package targets.
 
-The source tree defaults to the base feature configuration. The AI development build adds its provider, settings interface, and OpenAI host permission only during packaging; it is not intended for store submission.
+## Project documents
 
-See `RELEASE.md` for the store-submission checklist. The [Phraselet website](https://phraselet-cards.dreamingbigdreams.chatgpt.site) includes the public [privacy policy](https://phraselet-cards.dreamingbigdreams.chatgpt.site/privacy/) and [support page](https://phraselet-cards.dreamingbigdreams.chatgpt.site/support/); `PRIVACY.md` is the source policy kept with the extension.
+- [`PRODUCT.md`](PRODUCT.md) defines the product direction, release scope, and Base/AI boundary.
+- [`RELEASE.md`](RELEASE.md) tracks the Chrome Web Store submission checklist and manual testing still required.
+- [`STORE_LISTING.md`](STORE_LISTING.md) contains the prepared listing copy and permission disclosures.
+- [`PRIVACY.md`](PRIVACY.md) is the policy for the public Base build; [`PRIVACY-AI.md`](PRIVACY-AI.md) covers the internal AI development path.
+
+The [Phraselet website](https://phraselet-cards.dreamingbigdreams.chatgpt.site) hosts the public [privacy policy](https://phraselet-cards.dreamingbigdreams.chatgpt.site/privacy/) and [support page](https://phraselet-cards.dreamingbigdreams.chatgpt.site/support/).
 
 ## Possible post-release additions
 

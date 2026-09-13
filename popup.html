@@ -42,13 +42,13 @@
         <select id="tag-filter" aria-label="Filter by tag">
           <option value="">All tags</option>
         </select>
-        <label class="sr-only" for="status-filter">Filter by learning status</label>
-        <select id="status-filter" aria-label="Filter by learning status">
-          <option value="">All statuses</option>
-          <option value="learning">Learning</option>
-          <option value="known">Known</option>
+        <button id="manage-tag" class="text-button" type="button" disabled aria-expanded="false" aria-controls="tag-manager">Edit tag</button>
+        <label class="sr-only" for="view-filter">Choose phrase view</label>
+        <select id="view-filter" aria-label="Choose phrase view">
+          <option value="current">Current</option>
+          <option value="archived">Archived</option>
+          <option value="">All cards</option>
         </select>
-        <button id="manage-tag" class="text-button" type="button" disabled aria-expanded="false" aria-controls="tag-manager">Manage</button>
       </section>
 
       <section class="library-actions" aria-label="Import and export">
@@ -107,8 +107,8 @@
         <button id="bulk-export" class="secondary-button" type="button">Export</button>
       </div>
       <div class="bulk-state-row">
-        <button id="bulk-mark-known" class="secondary-button" type="button">Mark known</button>
-        <button id="bulk-mark-learning" class="secondary-button" type="button">Mark learning</button>
+        <button id="bulk-archive" class="secondary-button" type="button">Archive</button>
+        <button id="bulk-restore" class="secondary-button" type="button">Restore</button>
         <button id="bulk-delete" class="danger-button" type="button">Delete</button>
       </div>
     </section>

@@ -12,7 +12,7 @@
 - [x] Verify the 128×128 store icon uses a 96×96 mark with 16 pixels of transparent padding.
 - [ ] Test a clean install and update on the oldest supported Chrome version and current stable Chrome.
 - [ ] Verify capture on ordinary pages, iframes, text inputs, and protected Chrome pages (which should fail gracefully).
-- [ ] Verify JSON import, JSON/Markdown/CSV export, selected-phrase copy/export, backup reminders, bulk actions, onboarding, and keyboard shortcuts.
+- [ ] Verify JSON import, JSON/Markdown/CSV export, selected-phrase copy/export, backup reminders, current/archived views, bulk actions, onboarding, and keyboard shortcuts.
 - [ ] Run `npm run check` from a clean checkout.
 - [x] Run `npm run package:base` and inspect the generated ZIP before upload.
 - [ ] Increment `version` in both `manifest.json` and `package.json` for every upload.
@@ -41,9 +41,9 @@ Permission explanations:
 
 Exclude tests, repository metadata, documentation, and local development files.
 
-## September 12, 2026 hardening run
+## September 13, 2026 hardening run
 
-- All 27 automated checks passed.
+- All 29 automated checks passed.
 - `dist/phraselet-base-0.1.0.zip` contains no enrichment modules, provider references, or third-party host permission.
 - `dist/phraselet-ai-dev-0.1.0.zip` contains the optional enrichment modules and OpenAI host permission as an internal-only build.
 - Store screenshots are 1280×800, the promotional image is 440×280, and the store icon is 128×128 with a centered 96×96 mark.
@@ -55,3 +55,10 @@ Exclude tests, repository metadata, documentation, and local development files.
 - Markdown and CSV are portable export formats and are not imported back into Phraselet.
 - Bulk-selection mode can copy phrase text or export the selected records only.
 - Libraries with at least 10 phrases receive a reminder after 30 days without a complete JSON backup; **Later** snoozes it for seven days.
+
+## Library lifecycle
+
+- New and previously learning phrases appear in the **Current** view.
+- Previously known phrases migrate to **Archived** so existing organization is preserved.
+- Users can archive and restore individual cards or a bulk selection without deleting them.
+- Complete backups include both current and archived cards; schema versions 1 and 2 remain importable.

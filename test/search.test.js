@@ -40,17 +40,28 @@ test("search tolerates small phrase typos and searches notes", () => {
   assert.deepEqual(rankCards(cards, { query: "quarterly" }).map(({ id }) => id), ["note"]);
 });
 
-test("status and tag filters compose with search", () => {
+test("archive and tag filters compose with search", () => {
   const rankCards = loadSearch();
   const cards = [
-    { id: "known", selectedText: "Luminous", status: "known", tags: ["Writing"] },
-    { id: "learning", selectedText: "Luminous", status: "learning", tags: ["Writing"] },
-    { id: "other", selectedText: "Luminous", status: "known", tags: ["Science"] }
+    { id: "archived", selectedText: "Luminous", status: "archived", tags: ["Writing"] },
+    { id: "current", selectedText: "Luminous", status: "current", tags: ["Writing"] },
+    { id: "other", selectedText: "Luminous", status: "archived", tags: ["Science"] }
   ];
 
   assert.deepEqual(rankCards(cards, {
     query: "luminos",
     tag: "writing",
-    status: "known"
-  }).map(({ id }) => id), ["known"]);
+    status: "archived"
+  }).map(({ id }) => id), ["archived"]);
+});
+
+test("legacy known and learning states map to archived and current views", () => {
+  const rankCards = loadSearch();
+  const cards = [
+    { id: "known", selectedText: "One", status: "known", tags: [] },
+    { id: "learning", selectedText: "Two", status: "learning", tags: [] }
+  ];
+
+  assert.deepEqual(rankCards(cards, { status: "archived" }).map(({ id }) => id), ["known"]);
+  assert.deepEqual(rankCards(cards, { status: "current" }).map(({ id }) => id), ["learning"]);
 });

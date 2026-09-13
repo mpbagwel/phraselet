@@ -41,7 +41,7 @@ async function saveOptions() {
         afterSave: normalizeAfterSave(afterSaveEl.value)
       }
     });
-    showStatus("Options saved.");
+    showStatus("Options saved");
   } finally {
     saveEl.disabled = false;
   }
@@ -60,7 +60,8 @@ function normalizeAfterSave(value) {
 }
 
 function showStatus(message) {
-  statusEl.textContent = message;
+  const displayMessage = String(message ?? "").trim().replace(/[.!]+$/u, "");
+  statusEl.textContent = displayMessage;
   setTimeout(() => {
     statusEl.textContent = "";
   }, 1800);

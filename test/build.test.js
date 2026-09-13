@@ -19,6 +19,7 @@ test("base and AI development packages enforce their capability boundaries", () 
   const aiFeatures = read(path.join(aiRoot, "src/features.js"));
   const baseOptions = read(path.join(baseRoot, "options.html"));
   const baseOnboarding = read(path.join(baseRoot, "onboarding.html"));
+  const basePopup = read(path.join(baseRoot, "popup.html"));
   const baseRuntimeSources = listFiles(path.join(baseRoot, "src"))
     .map(read)
     .join("\n");
@@ -30,6 +31,9 @@ test("base and AI development packages enforce their capability boundaries", () 
   assert.equal(fs.existsSync(path.join(baseRoot, "src/backup.js")), true);
   assert.doesNotMatch(baseOptions, /api-key|OpenAI|AI explanations/i);
   assert.doesNotMatch(baseOnboarding, /OpenAI|AI explanations/i);
+  assert.match(basePopup, />Current</);
+  assert.match(basePopup, />Archived</);
+  assert.doesNotMatch(basePopup, />Known<|>Learning</);
   assert.doesNotMatch(
     baseRuntimeSources,
     /OpenAI|api\.openai\.com|gpt-4|sk-|AI explanations|Add an .* API key/i

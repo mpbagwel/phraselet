@@ -201,7 +201,7 @@ async function saveSelectionFromTab(tabId, fallback) {
     sourceTitle,
     sourceUrl,
     createdAt: new Date().toISOString(),
-    status: "learning",
+    status: "current",
     note: "",
     tags: [],
     ai: {
@@ -400,7 +400,11 @@ function displayCaptureToast(message, tone) {
   }
 
   const toast = host.shadowRoot.querySelector("[data-toast]");
-  toast.textContent = String(message ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
+  toast.textContent = String(message ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[.!]+$/u, "")
+    .slice(0, 300);
   toast.dataset.tone = tone === "error" ? "error" : "success";
   toast.dataset.visible = "true";
 
@@ -427,7 +431,7 @@ async function bulkUpdateCards(message) {
     return { ok: false, error: "Select at least one phrase." };
   }
 
-  if (!["add_tag", "remove_tag", "mark_known", "mark_learning", "delete"].includes(operation)) {
+  if (!["add_tag", "remove_tag", "archive", "restore", "delete"].includes(operation)) {
     return { ok: false, error: "That bulk action is not supported." };
   }
 
@@ -455,9 +459,9 @@ async function bulkUpdateCards(message) {
           return card;
         }
 
-        if (operation === "mark_known" || operation === "mark_learning") {
-          const status = operation === "mark_known" ? "known" : "learning";
-          if (card.status === status) {
+        if (operation === "archive" || operation === "restore") {
+          const status = operation === "archive" ? "archived" : "current";
+          if (normalizeCardStatus(card.status) === status) {
             return card;
           }
           changed += 1;
@@ -532,6 +536,17 @@ async function migrateLegacyStorage() {
   }
   if (onboarding[ONBOARDING_KEY] === undefined && onboarding[LEGACY_ONBOARDING_KEY] !== undefined) {
     updates[ONBOARDING_KEY] = onboarding[LEGACY_ONBOARDING_KEY];
+  }
+
+  const currentCards = updates[CARDS_KEY] ?? cards[CARDS_KEY];
+  if (Array.isArray(currentCards)) {
+    const normalizedCards = currentCards.map((card) => ({
+      ...card,
+      status: normalizeCardStatus(card?.status)
+    }));
+    if (normalizedCards.some((card, index) => card.status !== currentCards[index]?.status)) {
+      updates[CARDS_KEY] = normalizedCards;
+    }
   }
 
   if (!FEATURES.aiEnrichment) {
@@ -623,6 +638,10 @@ async function setBadge(text) {
 
 function cleanText(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeCardStatus(status) {
+  return status === "archived" || status === "known" ? "archived" : "current";
 }
 
 function truncateText(value, maxLength) {

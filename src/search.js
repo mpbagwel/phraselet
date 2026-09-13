@@ -11,13 +11,17 @@ export function rankCards(cards, {
   return cards
     .map((card, index) => ({ card, index, score: scoreCard(card, normalizedQuery, queryTokens, includeEnrichment) }))
     .filter(({ card, score }) => {
-      const matchesStatus = !status || card.status === status;
+      const matchesStatus = !status || normalizeCardStatus(card.status) === status;
       const matchesTag = !normalizedTag || (card.tags || [])
         .some((candidate) => normalizeSearchText(candidate) === normalizedTag);
       return matchesStatus && matchesTag && score !== null;
     })
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .map(({ card }) => card);
+}
+
+function normalizeCardStatus(status) {
+  return status === "archived" || status === "known" ? "archived" : "current";
 }
 
 function scoreCard(card, query, queryTokens, includeEnrichment) {

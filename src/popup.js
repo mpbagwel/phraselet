@@ -34,7 +34,7 @@ const cardsEl = document.querySelector("#cards");
 const countEl = document.querySelector("#card-count");
 const searchEl = document.querySelector("#search");
 const tagFilterEl = document.querySelector("#tag-filter");
-const statusFilterEl = document.querySelector("#status-filter");
+const viewFilterEl = document.querySelector("#view-filter");
 const tagSuggestionsEl = document.querySelector("#tag-suggestions");
 const manageTagEl = document.querySelector("#manage-tag");
 const tagManagerEl = document.querySelector("#tag-manager");
@@ -64,8 +64,8 @@ const bulkRemoveTagEl = document.querySelector("#bulk-remove-tag");
 const bulkCopyEl = document.querySelector("#bulk-copy");
 const bulkExportFormatEl = document.querySelector("#bulk-export-format");
 const bulkExportEl = document.querySelector("#bulk-export");
-const bulkMarkKnownEl = document.querySelector("#bulk-mark-known");
-const bulkMarkLearningEl = document.querySelector("#bulk-mark-learning");
+const bulkArchiveEl = document.querySelector("#bulk-archive");
+const bulkRestoreEl = document.querySelector("#bulk-restore");
 const bulkDeleteEl = document.querySelector("#bulk-delete");
 
 let cards = [];
@@ -89,7 +89,7 @@ async function init() {
     }
 
     if (changes[CARDS_KEY]) {
-      cards = changes[CARDS_KEY].newValue || [];
+      cards = normalizeCardStatuses(changes[CARDS_KEY].newValue || []);
       if (!cards.length) {
         selectionMode = false;
         selectedCardIds.clear();
@@ -159,14 +159,14 @@ bulkAddTagEl.addEventListener("click", () => applyBulkAction("add_tag"));
 bulkRemoveTagEl.addEventListener("click", () => applyBulkAction("remove_tag"));
 bulkCopyEl.addEventListener("click", copySelectedPhrases);
 bulkExportEl.addEventListener("click", exportSelectedPhrases);
-bulkMarkKnownEl.addEventListener("click", () => applyBulkAction("mark_known"));
-bulkMarkLearningEl.addEventListener("click", () => applyBulkAction("mark_learning"));
+bulkArchiveEl.addEventListener("click", () => applyBulkAction("archive"));
+bulkRestoreEl.addEventListener("click", () => applyBulkAction("restore"));
 bulkDeleteEl.addEventListener("click", deleteSelectedCards);
 backupNowEl.addEventListener("click", exportBackupNow);
 backupLaterEl.addEventListener("click", snoozeBackupReminder);
 
 searchEl.addEventListener("input", render);
-statusFilterEl.addEventListener("change", render);
+viewFilterEl.addEventListener("change", render);
 tagFilterEl.addEventListener("change", () => {
   closeTagManager();
   render();
@@ -208,12 +208,12 @@ cardsEl.addEventListener("click", async (event) => {
     await deleteCard(id);
   }
 
-  if (action === "toggle-known") {
+  if (action === "toggle-archive") {
     const card = cards.find((candidate) => candidate.id === id);
     if (card) {
       await upsertCard({
         ...card,
-        status: card.status === "known" ? "learning" : "known"
+        status: cardStatus(card) === "archived" ? "current" : "archived"
       });
     }
   }
@@ -383,8 +383,8 @@ async function applyBulkAction(operation) {
     const statusMessage = {
       add_tag: `Added ${tag} to ${changedPhrases}.`,
       remove_tag: `Removed ${tag} from ${changedPhrases}.`,
-      mark_known: `Marked ${changedPhrases} as known.`,
-      mark_learning: `Marked ${changedPhrases} as learning.`
+      archive: `Archived ${changedPhrases}.`,
+      restore: `Restored ${changedPhrases}.`
     }[operation];
     showLibraryStatus(statusMessage);
 
@@ -438,8 +438,8 @@ function setBulkControlsDisabled(disabled) {
     bulkCopyEl,
     bulkExportFormatEl,
     bulkExportEl,
-    bulkMarkKnownEl,
-    bulkMarkLearningEl,
+    bulkArchiveEl,
+    bulkRestoreEl,
     bulkDeleteEl
   ].forEach((control) => {
     control.disabled = disabled;
@@ -449,7 +449,8 @@ function setBulkControlsDisabled(disabled) {
 function focusCard(id) {
   searchEl.value = "";
   tagFilterEl.value = "";
-  statusFilterEl.value = "";
+  const focusedCard = cards.find((card) => card.id === id);
+  viewFilterEl.value = focusedCard ? cardStatus(focusedCard) : "current";
   closeTagManager();
   render();
 
@@ -468,12 +469,12 @@ function render() {
   renderTagFilter();
   const query = searchEl.value.trim();
   const selectedTag = normalizeTagKey(tagFilterEl.value);
-  const selectedStatus = statusFilterEl.value;
+  const selectedStatus = viewFilterEl.value;
   const visibleCards = getVisibleCards(query, selectedTag, selectedStatus);
 
-  countEl.textContent = query || selectedTag || selectedStatus
+  countEl.textContent = query || selectedTag || selectedStatus !== "current"
     ? `${visibleCards.length} of ${cards.length} phrases`
-    : cards.length === 1 ? "1 saved phrase" : `${cards.length} saved phrases`;
+    : visibleCards.length === 1 ? "1 current phrase" : `${visibleCards.length} current phrases`;
   exportCardsEl.disabled = cards.length === 0;
   toggleSelectionEl.disabled = cards.length === 0 && !selectionMode;
   if (!cards.length) {
@@ -493,7 +494,7 @@ function render() {
 function getVisibleCards(
   query = searchEl.value.trim(),
   selectedTag = normalizeTagKey(tagFilterEl.value),
-  selectedStatus = statusFilterEl.value
+  selectedStatus = viewFilterEl.value
 ) {
   return rankCards(cards, {
     query,
@@ -514,7 +515,10 @@ function renderBulkActions(visibleCards) {
 
   const visibleIds = visibleCards.map((card) => card.id);
   const visibleSelected = visibleIds.filter((id) => selectedCardIds.has(id)).length;
+  const selectedCards = cards.filter((card) => selectedCardIds.has(card.id));
   const hasSelection = selectedCardIds.size > 0;
+  const hasCurrentSelection = selectedCards.some((card) => cardStatus(card) === "current");
+  const hasArchivedSelection = selectedCards.some((card) => cardStatus(card) === "archived");
   const allVisibleSelected = visibleIds.length > 0 && visibleSelected === visibleIds.length;
 
   bulkSelectAllEl.checked = allVisibleSelected;
@@ -531,8 +535,8 @@ function renderBulkActions(visibleCards) {
   bulkCopyEl.disabled = !hasSelection;
   bulkExportFormatEl.disabled = !hasSelection;
   bulkExportEl.disabled = !hasSelection;
-  bulkMarkKnownEl.disabled = !hasSelection;
-  bulkMarkLearningEl.disabled = !hasSelection;
+  bulkArchiveEl.disabled = !hasCurrentSelection;
+  bulkRestoreEl.disabled = !hasArchivedSelection;
   bulkDeleteEl.disabled = !hasSelection;
 }
 
@@ -543,13 +547,16 @@ function renderCard(card) {
   const relatedPanelId = disclosureId(card.id, "related");
   const contextPanelId = disclosureId(card.id, "context");
   const editPanelId = disclosureId(card.id, "edit");
-  const isKnown = card.status === "known";
-  const status = FEATURES.aiEnrichment
-    ? STATUS_LABELS[ai.status] || (isKnown ? "Known" : "Learning")
-    : isKnown ? "Known" : "Learning";
-  const statusClass = FEATURES.aiEnrichment && Object.hasOwn(STATUS_LABELS, ai.status)
-    ? ai.status
-    : isKnown ? "known" : "learning";
+  const isArchived = cardStatus(card) === "archived";
+  const status = isArchived
+    ? "Archived"
+    : FEATURES.aiEnrichment ? STATUS_LABELS[ai.status] || "" : "";
+  const statusClass = isArchived
+    ? "archived"
+    : FEATURES.aiEnrichment && Object.hasOwn(STATUS_LABELS, ai.status) ? ai.status : "";
+  const statusBadge = status
+    ? `<span class="status-badge status-${statusClass}">${escapeHtml(status)}</span>`
+    : "";
   const examples = FEATURES.aiEnrichment && Array.isArray(ai.examples) && ai.examples.length
     ? `<ul class="examples">${ai.examples.map((example) => `<li>${escapeHtml(example)}</li>`).join("")}</ul>`
     : "";
@@ -585,13 +592,13 @@ function renderCard(card) {
     : "";
 
   return `
-    <article class="phrase-card ${isKnown ? "is-known" : ""} ${isSelected ? "is-selected" : ""}" data-card-id="${cardId}">
+    <article class="phrase-card ${isArchived ? "is-archived" : ""} ${isSelected ? "is-selected" : ""}" data-card-id="${cardId}">
       <div class="card-header">
         <div class="card-title-row">
           ${selector}
           <h2>${escapeHtml(card.selectedText)}</h2>
         </div>
-        <span class="status-badge status-${statusClass}">${escapeHtml(status)}</span>
+        ${statusBadge}
       </div>
       ${note}
       ${FEATURES.aiEnrichment && ai.summary ? `<p class="card-summary">${escapeHtml(ai.summary)}</p>` : ""}
@@ -616,7 +623,7 @@ function renderCard(card) {
         <div>${source}</div>
         <div class="card-actions">
           ${FEATURES.aiEnrichment ? `<button data-action="enrich" data-id="${cardId}" type="button">Explain</button>` : ""}
-          <button data-action="toggle-known" data-id="${cardId}" type="button" aria-pressed="${isKnown}">${isKnown ? "Learning" : "Known"}</button>
+          <button data-action="toggle-archive" data-id="${cardId}" type="button">${isArchived ? "Restore" : "Archive"}</button>
           <button class="delete-action" data-action="delete" data-id="${cardId}" type="button">Delete</button>
         </div>
       </footer>
@@ -744,11 +751,18 @@ function toggleCardPanel(button) {
 }
 
 function emptyState(query, selectedTag, selectedStatus) {
-  const filtered = query || selectedTag || selectedStatus;
+  const filtered = query || selectedTag || selectedStatus !== "current";
+  const hasCards = cards.length > 0;
+  const heading = !hasCards
+    ? "Save what made you pause."
+    : filtered ? "No matches" : "No current phrases";
+  const copy = !hasCards
+    ? "Highlight text on a page, use your Phraselet shortcut, or right-click and choose Save to Phraselet."
+    : filtered ? "Try a broader search or clear a filter." : "Restore an archived phrase or save something new.";
   return `
     <section class="empty-state">
-      <h2>${filtered ? "No matches" : "Save what made you pause."}</h2>
-      <p>${filtered ? "Try a broader search or clear a filter." : "Highlight text on a page, use your Phraselet shortcut, or right-click and choose Save to Phraselet."}</p>
+      <h2>${heading}</h2>
+      <p>${copy}</p>
     </section>
   `;
 }
@@ -790,7 +804,7 @@ function toggleTagManager() {
   }
 
   tagManagerEl.hidden = !tagManagerEl.hidden;
-  manageTagEl.textContent = tagManagerEl.hidden ? "Manage" : "Close";
+  manageTagEl.textContent = tagManagerEl.hidden ? "Edit tag" : "Close";
   manageTagEl.setAttribute("aria-expanded", String(!tagManagerEl.hidden));
 
   if (!tagManagerEl.hidden) {
@@ -802,7 +816,7 @@ function toggleTagManager() {
 
 function closeTagManager() {
   tagManagerEl.hidden = true;
-  manageTagEl.textContent = "Manage";
+  manageTagEl.textContent = "Edit tag";
   manageTagEl.setAttribute("aria-expanded", "false");
 }
 
@@ -855,7 +869,7 @@ async function deleteSelectedTag() {
 
 async function getCards() {
   const result = await chrome.storage.local.get(CARDS_KEY);
-  return Array.isArray(result[CARDS_KEY]) ? result[CARDS_KEY] : [];
+  return normalizeCardStatuses(result[CARDS_KEY]);
 }
 
 async function getBackupReminder() {
@@ -1096,7 +1110,7 @@ function extractImportCards(payload) {
     return payload;
   }
 
-  if (payload && typeof payload === "object" && ![1, IMPORT_SCHEMA_VERSION].includes(payload.schemaVersion)) {
+  if (payload && typeof payload === "object" && ![1, 2, IMPORT_SCHEMA_VERSION].includes(payload.schemaVersion)) {
     throw new Error("This Phraselet export version is not supported.");
   }
 
@@ -1127,7 +1141,7 @@ function normalizeImportedCard(card) {
     sourceTitle: cleanText(card.sourceTitle).slice(0, MAX_TITLE_LENGTH),
     sourceUrl: safeSourceUrl(cleanText(card.sourceUrl).slice(0, MAX_URL_LENGTH)),
     createdAt: normalizeIsoDate(card.createdAt),
-    status: card.status === "known" ? "known" : "learning",
+    status: normalizeCardStatus(card.status),
     note: cleanMultilineText(card.note, 2000),
     tags: normalizeTags(card.tags),
     ai: {
@@ -1235,14 +1249,33 @@ function formatImportStatus({ added, updated }) {
 }
 
 function showLibraryStatus(message, isError = false) {
-  libraryStatusEl.textContent = message;
+  const displayMessage = formatMicrocopy(message);
+  libraryStatusEl.textContent = displayMessage;
   libraryStatusEl.classList.toggle("is-error", isError);
   setTimeout(() => {
-    if (libraryStatusEl.textContent === message) {
+    if (libraryStatusEl.textContent === displayMessage) {
       libraryStatusEl.textContent = "";
       libraryStatusEl.classList.remove("is-error");
     }
   }, 2200);
+}
+
+function normalizeCardStatuses(cardList) {
+  return Array.isArray(cardList)
+    ? cardList.map((card) => ({ ...card, status: normalizeCardStatus(card?.status) }))
+    : [];
+}
+
+function normalizeCardStatus(status) {
+  return status === "archived" || status === "known" ? "archived" : "current";
+}
+
+function cardStatus(card) {
+  return normalizeCardStatus(card?.status);
+}
+
+function formatMicrocopy(message) {
+  return String(message ?? "").trim().replace(/[.!]+$/u, "");
 }
 
 function setCaptureButtonLabel(label) {

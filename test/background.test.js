@@ -319,8 +319,8 @@ test("restricts local extension storage to trusted contexts", async () => {
   );
 });
 
-test("migrates saved Pausemark data to Phraselet storage keys", async () => {
-  const legacyCards = [{ id: "legacy", selectedText: "Keep this", tags: [] }];
+test("migrates saved Pausemark data and legacy learning states", async () => {
+  const legacyCards = [{ id: "legacy", selectedText: "Keep this", status: "known", tags: [] }];
   const legacySettings = { apiKey: "legacy-key", afterSave: "open_popup" };
   const { localStorage } = loadBackground({ legacyCards, legacySettings });
 
@@ -328,7 +328,7 @@ test("migrates saved Pausemark data to Phraselet storage keys", async () => {
     await new Promise(setImmediate);
   }
 
-  assert.deepEqual(localStorage["phraselet.cards"], legacyCards);
+  assert.equal(localStorage["phraselet.cards"][0].status, "archived");
   assert.deepEqual(localStorage["phraselet.settings"], legacySettings);
   assert.equal(localStorage["pausemark.cards"], undefined);
   assert.equal(localStorage["pausemark.settings"], undefined);
@@ -345,7 +345,7 @@ test("opens onboarding on first install but not on extension updates", async () 
   assert.equal(createdTabs[0].url, "chrome-extension://phraselet/onboarding.html");
 });
 
-test("applies bulk tagging and status changes in one storage mutation", async () => {
+test("applies bulk tagging and archive changes in one storage mutation", async () => {
   const initialCards = [
     { id: "one", selectedText: "First", status: "learning", tags: ["work"] },
     { id: "two", selectedText: "Second", status: "learning", tags: [] },
@@ -376,16 +376,25 @@ test("applies bulk tagging and status changes in one storage mutation", async ()
   assert.deepEqual(Array.from(localStorage["phraselet.cards"][0].tags), ["work"]);
   assert.deepEqual(Array.from(localStorage["phraselet.cards"][1].tags), ["Review"]);
 
-  const statusResult = await sendRuntimeMessage(runtimeMessageHandler, {
+  const archiveResult = await sendRuntimeMessage(runtimeMessageHandler, {
     type: "PHRASELET_BULK_UPDATE_CARDS",
-    operation: "mark_known",
+    operation: "archive",
     cardIds: ["one", "two"]
   });
-  assert.equal(statusResult.ok, true);
-  assert.equal(statusResult.changed, 2);
-  assert.equal(localStorage["phraselet.cards"][0].status, "known");
-  assert.equal(localStorage["phraselet.cards"][1].status, "known");
-  assert.equal(localStorage["phraselet.cards"][2].status, "learning");
+  assert.equal(archiveResult.ok, true);
+  assert.equal(archiveResult.changed, 2);
+  assert.equal(localStorage["phraselet.cards"][0].status, "archived");
+  assert.equal(localStorage["phraselet.cards"][1].status, "archived");
+  assert.equal(localStorage["phraselet.cards"][2].status, "current");
+
+  const restoreResult = await sendRuntimeMessage(runtimeMessageHandler, {
+    type: "PHRASELET_BULK_UPDATE_CARDS",
+    operation: "restore",
+    cardIds: ["two"]
+  });
+  assert.equal(restoreResult.ok, true);
+  assert.equal(restoreResult.changed, 1);
+  assert.equal(localStorage["phraselet.cards"][1].status, "current");
 });
 
 test("bulk delete removes only selected cards", async () => {

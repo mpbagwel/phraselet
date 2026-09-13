@@ -352,7 +352,7 @@ kbd {
 
 .filter-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto 112px;
   align-items: center;
   min-width: 0;
   border: 1px solid var(--line);
@@ -379,8 +379,8 @@ kbd {
 
 .filter-row select:focus { box-shadow: none; }
 
-#status-filter {
-  width: 120px;
+#view-filter {
+  width: 112px;
   border-left: 1px solid var(--line);
   border-radius: 0;
   padding-left: 8px;
@@ -643,8 +643,8 @@ kbd {
   content: "";
 }
 
-.phrase-card.is-known { border-color: #c4d2d8; }
-.phrase-card.is-known::before { background: var(--sage); }
+.phrase-card.is-archived { border-color: #c4d2d8; }
+.phrase-card.is-archived::before { background: var(--sage); }
 
 .phrase-card.is-selected {
   border-color: var(--accent);
