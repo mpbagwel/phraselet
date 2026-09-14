@@ -39,6 +39,8 @@ Cards are stored in `chrome.storage.local` on your machine. Phraselet accesses p
 
 JSON is the lossless backup format and Phraselet accepts compatible schema versions 1 through 3. Markdown and CSV are intended for notes apps, text editors, and spreadsheets; they are not imported back into Phraselet.
 
+JSON imports accept files up to 32 MiB to accommodate formatted backups. The merged library still follows the 5,000-phrase and 8 MiB safeguards. Importing merges into the latest library and does not reset the complete-backup reminder. Captures, edits, tags, imports, archive changes, and deletions share a background write queue so overlapping operations do not overwrite unrelated changes.
+
 ## Build targets
 
 The source tree defaults to the Base feature configuration. `npm run package:base` creates the local-first Chrome Web Store ZIP without AI provider code, API-key controls, third-party host access, or a standing clipboard permission.
@@ -47,22 +49,15 @@ The source tree defaults to the Base feature configuration. `npm run package:bas
 
 ## Development checks
 
-Run `npm run check` to syntax-check the extension scripts and execute the automated tests. The same command runs in GitHub Actions. The September 13, 2026 hardening run passed all 29 checks and rebuilt both package targets.
+Run `npm run check` to syntax-check the extension scripts and execute the automated tests. The same command runs in GitHub Actions. The September 14, 2026 hardening run passed all 39 checks and rebuilt both package targets. This includes large-backup restoration and overlapping library mutations; a real Chrome smoke test is still required before release.
 
 ## Project documents
 
-- [`PRODUCT.md`](PRODUCT.md) defines the product direction, release scope, and Base/AI boundary.
 - [`RELEASE.md`](RELEASE.md) tracks the Chrome Web Store submission checklist and manual testing still required.
 - [`STORE_LISTING.md`](STORE_LISTING.md) contains the prepared listing copy and permission disclosures.
 - [`PRIVACY.md`](PRIVACY.md) is the policy for the public Base build; [`PRIVACY-AI.md`](PRIVACY-AI.md) covers the internal AI development path.
 
 The [Phraselet website](https://phraselet-cards.dreamingbigdreams.chatgpt.site) hosts the public [privacy policy](https://phraselet-cards.dreamingbigdreams.chatgpt.site/privacy/) and [support page](https://phraselet-cards.dreamingbigdreams.chatgpt.site/support/).
-
-## Possible post-release additions
-
-- Add collections
-- Add a side panel reading companion
-- Sync cards across browsers
 
 ## License
 
