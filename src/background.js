@@ -1,4 +1,5 @@
 import { FEATURES, loadEnrichmentRuntime } from "./features.js";
+import { MAX_LIBRARY_BYTES, MAX_LIBRARY_CARDS, MAX_IMPORT_FILE_BYTES, prepareImportedCards, mergeImportedCards } from "./library.js";
 
 const MENU_ID = "phraselet-save-selection";
 const CARDS_KEY = "phraselet.cards";
@@ -11,8 +12,6 @@ const MAX_PHRASE_LENGTH = 500;
 const MAX_CONTEXT_LENGTH = 1200;
 const MAX_TITLE_LENGTH = 300;
 const MAX_URL_LENGTH = 2048;
-const MAX_LIBRARY_CARDS = 5000;
-const MAX_LIBRARY_BYTES = 8 * 1024 * 1024;
 let cardsMutationQueue = Promise.resolve();
 const storageMigrationPromise = migrateLegacyStorage();
 const enrichmentRuntimePromise = FEATURES.aiEnrichment
@@ -76,6 +75,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message?.type === "PHRASELET_BULK_UPDATE_CARDS") {
     respondToMessage(bulkUpdateCards(message), sendResponse);
+    return true;
+  }
+
+  if (message?.type === "PHRASELET_UPDATE_CARD") {
+    respondToMessage(updateCard(message), sendResponse);
+    return true;
+  }
+
+  if (message?.type === "PHRASELET_UPDATE_TAG") {
+    respondToMessage(updateTag(message), sendResponse);
+    return true;
+  }
+
+  if (message?.type === "PHRASELET_IMPORT_CARDS") {
+    respondToMessage(importCards(message.payload), sendResponse);
     return true;
   }
 
@@ -171,61 +185,52 @@ async function saveSelectionFromTab(tabId, fallback) {
   const sourceTitle = cleanText(payload.sourceTitle || fallback.sourceTitle).slice(0, MAX_TITLE_LENGTH);
   const sourceUrl = cleanText(payload.sourceUrl || fallback.sourceUrl).slice(0, MAX_URL_LENGTH);
   const contextText = cleanText(payload.contextText).slice(0, MAX_CONTEXT_LENGTH);
-  const cards = await getCards();
-  const existingCard = cards.find((card) => (
-    cardIdentity(card.selectedText, card.sourceUrl) === cardIdentity(selectedText, sourceUrl)
-  ));
-
-  if (existingCard) {
-    await upsertCard({
+  const result = await mutateCards((cards) => {
+    const existingCard = cards.find((card) => (
+      cardIdentity(card.selectedText, card.sourceUrl) === cardIdentity(selectedText, sourceUrl)
+    ));
+    const card = existingCard ? {
       ...existingCard,
       contextText: contextText || existingCard.contextText || "",
       sourceTitle: sourceTitle || existingCard.sourceTitle || "",
       sourceUrl: sourceUrl || existingCard.sourceUrl || ""
-    });
-    await setBadge("1");
+    } : {
+      id: crypto.randomUUID(),
+      selectedText,
+      contextText,
+      sourceTitle,
+      sourceUrl,
+      createdAt: new Date().toISOString(),
+      status: "current",
+      note: "",
+      tags: [],
+      ai: {
+        status: FEATURES.aiEnrichment ? "pending" : "not_requested",
+        summary: "",
+        contextMeaning: "",
+        examples: [],
+        relatedTerms: [],
+        error: ""
+      }
+    };
 
     return {
-      ok: true,
-      duplicate: true,
-      truncated: selectionTruncated,
-      cardId: existingCard.id,
-      selectedText: truncateText(selectedText, 80)
+      cards: [card, ...cards.filter((candidate) => candidate.id !== card.id)],
+      value: {
+        ok: true,
+        duplicate: Boolean(existingCard),
+        truncated: selectionTruncated,
+        cardId: card.id,
+        selectedText: truncateText(selectedText, 80)
+      }
     };
-  }
+  });
 
-  const card = {
-    id: crypto.randomUUID(),
-    selectedText,
-    contextText,
-    sourceTitle,
-    sourceUrl,
-    createdAt: new Date().toISOString(),
-    status: "current",
-    note: "",
-    tags: [],
-    ai: {
-      status: FEATURES.aiEnrichment ? "pending" : "not_requested",
-      summary: "",
-      contextMeaning: "",
-      examples: [],
-      relatedTerms: [],
-      error: ""
-    }
-  };
-
-  await upsertCard(card);
   await setBadge("1");
-  if (FEATURES.aiEnrichment) {
-    enrichCard(card.id).catch(() => undefined);
+  if (FEATURES.aiEnrichment && !result.duplicate) {
+    enrichCard(result.cardId).catch(() => undefined);
   }
-
-  return {
-    ok: true,
-    truncated: selectionTruncated,
-    cardId: card.id,
-    selectedText: truncateText(selectedText, 80)
-  };
+  return result;
 }
 
 async function showCaptureToast(tabId, result, frameId) {
@@ -568,14 +573,63 @@ async function migrateLegacyStorage() {
   ]);
 }
 
-async function upsertCard(card) {
+async function updateCard({ cardId, changes }) {
+  const limits = { selectedText: MAX_PHRASE_LENGTH, contextText: 3000, sourceTitle: MAX_TITLE_LENGTH, note: 2000 };
+  const patch = {};
+  for (const [field, limit] of Object.entries(limits)) {
+    if (changes && Object.hasOwn(changes, field)) {
+      patch[field] = field === "note"
+        ? String(changes[field] ?? "").replace(/\r\n?/g, "\n").trim().slice(0, limit)
+        : cleanText(changes[field]).slice(0, limit);
+    }
+  }
+  if (Object.hasOwn(patch, "selectedText") && !patch.selectedText) {
+    throw new Error("A phrase cannot be empty");
+  }
+  return mutateCards((cards) => {
+    const existing = cards.find((card) => card.id === cardId);
+    if (!existing) {
+      throw new Error("This phrase was deleted — reopen the library to refresh");
+    }
+    const updated = { ...existing, ...patch };
+    if (cards.some((card) => card.id !== cardId
+      && cardIdentity(card.selectedText, card.sourceUrl) === cardIdentity(updated.selectedText, updated.sourceUrl))) {
+      throw new Error("That phrase is already saved from this page");
+    }
+    return {
+      cards: [updated, ...cards.filter((card) => card.id !== cardId)],
+      value: { ok: true }
+    };
+  });
+}
+
+async function updateTag({ tag, replacement }) {
+  const currentTag = cleanText(tag).slice(0, 40).toLowerCase();
+  const nextTag = replacement === null ? null : cleanText(replacement).slice(0, 40);
+  if (!currentTag || nextTag === "") {
+    throw new Error("Enter a tag name");
+  }
   return mutateCards((cards) => ({
-    cards: [
-      card,
-      ...cards.filter((candidate) => candidate.id !== card.id)
-    ],
-    value: card
+    cards: cards.map((card) => ({
+      ...card,
+      tags: normalizeCardTags(normalizeCardTags(card.tags).flatMap((value) => (
+        value.toLowerCase() !== currentTag ? [value] : nextTag === null ? [] : [nextTag]
+      )))
+    })),
+    value: { ok: true }
   }));
+}
+
+async function importCards(payload) {
+  if (new TextEncoder().encode(JSON.stringify(payload)).byteLength > MAX_IMPORT_FILE_BYTES) {
+    throw new Error("That file is larger than the 32 MB import limit");
+  }
+  const importedCards = prepareImportedCards(payload);
+  // Merge only after earlier writes finish, against the latest stored library.
+  return mutateCards((cards) => {
+    const result = mergeImportedCards(importedCards, cards);
+    return { cards: result.cards, value: { ok: true, added: result.added, updated: result.updated } };
+  });
 }
 
 function patchCard(cardId, updater) {

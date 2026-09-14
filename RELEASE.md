@@ -56,6 +56,14 @@ Exclude tests, repository metadata, documentation, and local development files.
 - Bulk-selection mode can copy phrase text or export the selected records only.
 - Libraries with at least 10 phrases receive a reminder after 30 days without a complete JSON backup; **Later** snoozes it for seven days.
 
+## September 14, 2026 data-integrity hardening
+
+- All 39 automated checks passed, including popup message routing, a JSON backup larger than the former 5 MiB import limit, and overlapping captures, edits, imports, tags, archive changes, and deletions.
+- Import files can be up to 32 MiB; normalized libraries retain the 5,000-phrase and 8 MiB safeguards. Failed over-limit imports leave existing cards unchanged.
+- All library mutations use the background write queue. Popup edits send changed fields only, and a stale edit cannot resurrect a deleted card.
+- Importing does not reset the complete-backup reminder, because a partial import is not a backup of the merged library.
+- Base and AI development packages were rebuilt. These are automated Node/VM checks, not a completed Chrome runtime smoke test. Before release, reload the unpacked extension and verify a large-backup restore plus a capture while the popup is open.
+
 ## Library lifecycle
 
 - New and previously learning phrases appear in the **Current** view.

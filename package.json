@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/background.js && node --check src/backup.js && node --check src/features.js && node --check src/export.js && node --check src/search.js && node --check src/shortcut.js && node --check src/enrichment/background.js && node --check src/enrichment/openai.js && node --check src/enrichment/onboarding.js && node --check src/enrichment/options.js && node --check src/onboarding.js && node --check src/options.js && node --check src/popup.js && node --check scripts/configure-build.mjs && node --test",
+    "check": "node --check src/background.js && node --check src/backup.js && node --check src/library.js && node --check src/features.js && node --check src/export.js && node --check src/search.js && node --check src/shortcut.js && node --check src/enrichment/background.js && node --check src/enrichment/openai.js && node --check src/enrichment/onboarding.js && node --check src/enrichment/options.js && node --check src/onboarding.js && node --check src/options.js && node --check src/popup.js && node --check scripts/configure-build.mjs && node --test",
     "package": "npm run package:base",
     "package:base": "sh scripts/package-extension.sh base",
     "package:ai-dev": "sh scripts/package-extension.sh ai-dev"

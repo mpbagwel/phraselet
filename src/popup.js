@@ -1,8 +1,7 @@
 import { FEATURES } from "./features.js";
 import {
   createExportFile,
-  createPlainTextExport,
-  EXPORT_SCHEMA_VERSION
+  createPlainTextExport
 } from "./export.js";
 import {
   createBackupState,
@@ -10,19 +9,11 @@ import {
   shouldShowBackupReminder
 } from "./backup.js";
 import { rankCards } from "./search.js";
+import { MAX_IMPORT_FILE_BYTES } from "./library.js";
 
 const CARDS_KEY = "phraselet.cards";
 const BACKUP_REMINDER_KEY = "phraselet.backupReminder";
-const IMPORT_SCHEMA_VERSION = EXPORT_SCHEMA_VERSION;
-const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
-const MAX_IMPORT_CARDS = 5000;
 const MAX_PHRASE_LENGTH = 500;
-const MAX_CONTEXT_LENGTH = 3000;
-const MAX_TITLE_LENGTH = 300;
-const MAX_URL_LENGTH = 2048;
-const MAX_AI_TEXT_LENGTH = 1200;
-const MAX_AI_ITEM_LENGTH = 500;
-const MAX_LIBRARY_BYTES = 8 * 1024 * 1024;
 const STATUS_LABELS = {
   enriched: "Explained",
   pending: "Thinking",
@@ -193,38 +184,32 @@ cardsEl.addEventListener("click", async (event) => {
     return;
   }
 
-  if (action === "remove-tag") {
-    const card = cards.find((candidate) => candidate.id === id);
-    if (card) {
-      const tagKey = normalizeTagKey(button.dataset.tag);
-      await upsertCard({
-        ...card,
-        tags: normalizeTags(card.tags).filter((tag) => normalizeTagKey(tag) !== tagKey)
+  try {
+    if (action === "remove-tag") {
+      await updateSelectedCard(id, "remove_tag", button.dataset.tag);
+    }
+
+    if (action === "delete") {
+      await deleteCard(id);
+    }
+
+    if (action === "toggle-archive") {
+      const card = cards.find((candidate) => candidate.id === id);
+      if (card) {
+        await updateSelectedCard(id, cardStatus(card) === "archived" ? "restore" : "archive");
+      }
+    }
+
+    if (FEATURES.aiEnrichment && action === "enrich") {
+      button.disabled = true;
+      button.textContent = "Working";
+      await chrome.runtime.sendMessage({
+        type: "PHRASELET_ENRICH_CARD",
+        cardId: id
       });
     }
-  }
-
-  if (action === "delete") {
-    await deleteCard(id);
-  }
-
-  if (action === "toggle-archive") {
-    const card = cards.find((candidate) => candidate.id === id);
-    if (card) {
-      await upsertCard({
-        ...card,
-        status: cardStatus(card) === "archived" ? "current" : "archived"
-      });
-    }
-  }
-
-  if (FEATURES.aiEnrichment && action === "enrich") {
-    button.disabled = true;
-    button.textContent = "Working";
-    await chrome.runtime.sendMessage({
-      type: "PHRASELET_ENRICH_CARD",
-      cardId: id
-    });
+  } catch (error) {
+    showLibraryStatus(error instanceof Error ? error.message : "Could not update the phrase", true);
   }
 });
 
@@ -250,39 +235,40 @@ cardsEl.addEventListener("submit", async (event) => {
 
   event.preventDefault();
 
-  if (form.dataset.action === "edit-card") {
-    await saveCardEdits(form);
-    return;
+  try {
+    if (form.dataset.action === "edit-card") {
+      await saveCardEdits(form);
+      return;
+    }
+
+    if (form.dataset.action !== "add-tag") {
+      return;
+    }
+
+    const card = cards.find((candidate) => candidate.id === form.dataset.id);
+    const input = form.elements.namedItem("tag");
+    const tag = normalizeTag(input?.value);
+
+    if (!card || !tag) {
+      return;
+    }
+
+    const tags = normalizeTags(card.tags);
+    if (tags.some((candidate) => normalizeTagKey(candidate) === normalizeTagKey(tag))) {
+      showLibraryStatus(`Already tagged ${tag}.`, true);
+      return;
+    }
+
+    if (tags.length >= 12) {
+      showLibraryStatus("A phrase can have up to 12 tags.", true);
+      return;
+    }
+
+    await updateSelectedCard(card.id, "add_tag", tag);
+    showLibraryStatus(`Added tag ${tag}.`);
+  } catch (error) {
+    showLibraryStatus(error instanceof Error ? error.message : "Could not save changes", true);
   }
-
-  if (form.dataset.action !== "add-tag") {
-    return;
-  }
-
-  const card = cards.find((candidate) => candidate.id === form.dataset.id);
-  const input = form.elements.namedItem("tag");
-  const tag = normalizeTag(input?.value);
-
-  if (!card || !tag) {
-    return;
-  }
-
-  const tags = normalizeTags(card.tags);
-  if (tags.some((candidate) => normalizeTagKey(candidate) === normalizeTagKey(tag))) {
-    showLibraryStatus(`Already tagged ${tag}.`, true);
-    return;
-  }
-
-  if (tags.length >= 12) {
-    showLibraryStatus("A phrase can have up to 12 tags.", true);
-    return;
-  }
-
-  await upsertCard({
-    ...card,
-    tags: [...tags, tag]
-  });
-  showLibraryStatus(`Added tag ${tag}.`);
 });
 
 async function saveCardEdits(form) {
@@ -312,15 +298,16 @@ async function saveCardEdits(form) {
 
   const explanationChanged = selectedText !== cleanText(card.selectedText)
     || contextText !== cleanText(card.contextText);
-  const updatedCard = {
-    ...card,
+  const editedFields = {
     selectedText,
     contextText,
     sourceTitle,
     note
   };
 
-  await upsertCard(updatedCard);
+  const changes = Object.fromEntries(Object.entries(editedFields)
+    .filter(([field, value]) => value !== (card[field] || "")));
+  await mutateLibrary({ type: "PHRASELET_UPDATE_CARD", cardId: card.id, changes });
   showLibraryStatus("Saved changes.");
 
   if (FEATURES.aiEnrichment && explanationChanged) {
@@ -836,13 +823,13 @@ async function renameSelectedTag(event) {
   }
 
   pendingTagSelection = nextTag;
-  await saveCards(cards.map((card) => ({
-    ...card,
-    tags: normalizeTags(
-      normalizeTags(card.tags)
-        .map((tag) => normalizeTagKey(tag) === normalizeTagKey(currentTag) ? nextTag : tag)
-    )
-  })));
+  try {
+    await mutateLibrary({ type: "PHRASELET_UPDATE_TAG", tag: currentTag, replacement: nextTag });
+  } catch (error) {
+    pendingTagSelection = null;
+    showLibraryStatus(error.message, true);
+    return;
+  }
   closeTagManager();
   showLibraryStatus(`Renamed ${currentTag} to ${nextTag}.`);
 }
@@ -858,11 +845,13 @@ async function deleteSelectedTag() {
   }
 
   pendingTagSelection = "";
-  await saveCards(cards.map((card) => ({
-    ...card,
-    tags: normalizeTags(card.tags)
-      .filter((tag) => normalizeTagKey(tag) !== normalizeTagKey(currentTag))
-  })));
+  try {
+    await mutateLibrary({ type: "PHRASELET_UPDATE_TAG", tag: currentTag, replacement: null });
+  } catch (error) {
+    pendingTagSelection = null;
+    showLibraryStatus(error.message, true);
+    return;
+  }
   closeTagManager();
   showLibraryStatus(`Deleted tag ${currentTag}.`);
 }
@@ -908,16 +897,20 @@ async function snoozeBackupReminder() {
   }
 }
 
-async function upsertCard(card) {
-  const nextCards = [
-    card,
-    ...cards.filter((candidate) => candidate.id !== card.id)
-  ];
-  await saveCards(nextCards);
+async function mutateLibrary(message) {
+  const result = await chrome.runtime.sendMessage(message);
+  if (!result?.ok) {
+    throw new Error(result?.error || "Could not update the library");
+  }
+  return result;
+}
+
+function updateSelectedCard(cardId, operation, tag) {
+  return mutateLibrary({ type: "PHRASELET_BULK_UPDATE_CARDS", cardIds: [cardId], operation, tag });
 }
 
 async function deleteCard(id) {
-  await saveCards(cards.filter((card) => card.id !== id));
+  await updateSelectedCard(id, "delete");
 }
 
 function toggleExportMenu() {
@@ -1060,30 +1053,11 @@ async function importCards() {
 
   try {
     if (file.size > MAX_IMPORT_FILE_BYTES) {
-      throw new Error("That file is larger than the 5 MB import limit.");
+      throw new Error("That file is larger than the 32 MB import limit.");
     }
 
     const payload = JSON.parse(await file.text());
-    const importedCards = extractImportCards(payload);
-    if (importedCards.length > MAX_IMPORT_CARDS) {
-      throw new Error(`An import can contain at most ${MAX_IMPORT_CARDS} phrases.`);
-    }
-    const normalizedCards = collapseDuplicateCards(
-      importedCards.map(normalizeImportedCard).filter(Boolean)
-    );
-
-    if (!normalizedCards.length) {
-      showLibraryStatus("No valid Phraselet phrases found.", true);
-      return;
-    }
-
-    const importResult = mergeImportedCards(normalizedCards, cards);
-    if (importResult.cards.length > MAX_IMPORT_CARDS) {
-      throw new Error(`Phraselet can store up to ${MAX_IMPORT_CARDS} phrases.`);
-    }
-
-    await saveCards(importResult.cards);
-    await markBackupCreated().catch(() => undefined);
+    const importResult = await mutateLibrary({ type: "PHRASELET_IMPORT_CARDS", payload });
     showLibraryStatus(formatImportStatus(importResult));
   } catch (error) {
     const message = error instanceof SyntaxError
@@ -1091,150 +1065,6 @@ async function importCards() {
       : error instanceof Error ? error.message : "Import failed.";
     showLibraryStatus(message, true);
   }
-}
-
-async function saveCards(nextCards) {
-  const byteLength = new TextEncoder().encode(JSON.stringify(nextCards)).byteLength;
-  if (byteLength > MAX_LIBRARY_BYTES && byteLength >= libraryByteLength(cards)) {
-    throw new Error("Phraselet's local library is full. Export or delete phrases before adding more.");
-  }
-  await chrome.storage.local.set({ [CARDS_KEY]: nextCards });
-}
-
-function libraryByteLength(cardList) {
-  return new TextEncoder().encode(JSON.stringify(cardList)).byteLength;
-}
-
-function extractImportCards(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (payload && typeof payload === "object" && ![1, 2, IMPORT_SCHEMA_VERSION].includes(payload.schemaVersion)) {
-    throw new Error("This Phraselet export version is not supported.");
-  }
-
-  if (Array.isArray(payload?.cards)) {
-    return payload.cards;
-  }
-
-  throw new Error("No Phraselet phrases were found in that file.");
-}
-
-function normalizeImportedCard(card) {
-  if (!card || typeof card !== "object") {
-    return null;
-  }
-
-  const selectedText = cleanText(card.selectedText).slice(0, MAX_PHRASE_LENGTH);
-  if (!selectedText) {
-    return null;
-  }
-
-  const enrichment = card.enrichment ?? card.ai;
-  const ai = enrichment && typeof enrichment === "object" ? enrichment : {};
-
-  return {
-    id: cleanText(card.id).slice(0, 100) || crypto.randomUUID(),
-    selectedText,
-    contextText: cleanText(card.contextText).slice(0, MAX_CONTEXT_LENGTH),
-    sourceTitle: cleanText(card.sourceTitle).slice(0, MAX_TITLE_LENGTH),
-    sourceUrl: safeSourceUrl(cleanText(card.sourceUrl).slice(0, MAX_URL_LENGTH)),
-    createdAt: normalizeIsoDate(card.createdAt),
-    status: normalizeCardStatus(card.status),
-    note: cleanMultilineText(card.note, 2000),
-    tags: normalizeTags(card.tags),
-    ai: {
-      status: ["enriched", "pending", "needs_api_key", "error", "not_requested"].includes(ai.status)
-        ? ai.status
-        : "pending",
-      summary: cleanText(ai.summary).slice(0, MAX_AI_TEXT_LENGTH),
-      contextMeaning: cleanText(ai.contextMeaning).slice(0, MAX_AI_TEXT_LENGTH),
-      examples: Array.isArray(ai.examples)
-        ? ai.examples
-          .map((item) => cleanText(item).slice(0, MAX_AI_ITEM_LENGTH))
-          .filter(Boolean)
-          .slice(0, 3)
-        : [],
-      relatedTerms: Array.isArray(ai.relatedTerms)
-        ? ai.relatedTerms
-          .map((item) => cleanText(item).slice(0, MAX_AI_ITEM_LENGTH))
-          .filter(Boolean)
-          .slice(0, 5)
-        : [],
-      error: cleanText(ai.error).slice(0, 500)
-    }
-  };
-}
-
-function normalizeIsoDate(value) {
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? new Date().toISOString() : date.toISOString();
-}
-
-function collapseDuplicateCards(cardList) {
-  return cardList.reduce((result, card) => {
-    const duplicateIndex = result.findIndex((candidate) => (
-      candidate.id === card.id || cardIdentity(candidate) === cardIdentity(card)
-    ));
-
-    if (duplicateIndex === -1) {
-      result.push(card);
-    } else {
-      result[duplicateIndex] = mergeCardRecords(result[duplicateIndex], card);
-    }
-
-    return result;
-  }, []);
-}
-
-function mergeImportedCards(importedCards, existingCards) {
-  const remainingCards = [...existingCards];
-  const mergedCards = [];
-  let added = 0;
-  let updated = 0;
-
-  importedCards.forEach((importedCard) => {
-    const duplicateIndex = remainingCards.findIndex((candidate) => (
-      candidate.id === importedCard.id
-      || cardIdentity(candidate) === cardIdentity(importedCard)
-    ));
-
-    if (duplicateIndex === -1) {
-      mergedCards.push(importedCard);
-      added += 1;
-      return;
-    }
-
-    const [existingCard] = remainingCards.splice(duplicateIndex, 1);
-    mergedCards.push(mergeCardRecords(existingCard, importedCard));
-    updated += 1;
-  });
-
-  return {
-    cards: [...mergedCards, ...remainingCards],
-    added,
-    updated
-  };
-}
-
-function mergeCardRecords(existingCard, incomingCard) {
-  const incomingAiHasContent = incomingCard.ai?.summary
-    || incomingCard.ai?.contextMeaning
-    || incomingCard.ai?.examples?.length
-    || incomingCard.ai?.relatedTerms?.length;
-
-  return {
-    ...existingCard,
-    ...incomingCard,
-    id: existingCard.id || incomingCard.id,
-    contextText: incomingCard.contextText || existingCard.contextText || "",
-    sourceTitle: incomingCard.sourceTitle || existingCard.sourceTitle || "",
-    sourceUrl: incomingCard.sourceUrl || existingCard.sourceUrl || "",
-    note: incomingCard.note || existingCard.note || "",
-    tags: normalizeTags([...(existingCard.tags || []), ...(incomingCard.tags || [])]),
-    ai: incomingAiHasContent ? incomingCard.ai : existingCard.ai || incomingCard.ai
-  };
 }
 
 function formatImportStatus({ added, updated }) {

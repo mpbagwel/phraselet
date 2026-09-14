@@ -29,6 +29,7 @@ test("base and AI development packages enforce their capability boundaries", () 
   assert.match(baseFeatures, /aiEnrichment: false/);
   assert.equal(fs.existsSync(path.join(baseRoot, "src/enrichment")), false);
   assert.equal(fs.existsSync(path.join(baseRoot, "src/backup.js")), true);
+  assert.equal(fs.existsSync(path.join(baseRoot, "src/library.js")), true);
   assert.doesNotMatch(baseOptions, /api-key|OpenAI|AI explanations/i);
   assert.doesNotMatch(baseOnboarding, /OpenAI|AI explanations/i);
   assert.match(basePopup, />Current</);
@@ -41,6 +42,7 @@ test("base and AI development packages enforce their capability boundaries", () 
 
   assert.deepEqual(aiManifest.host_permissions, ["https://api.openai.com/*"]);
   assert.equal(fs.existsSync(path.join(aiRoot, "src/backup.js")), true);
+  assert.equal(fs.existsSync(path.join(aiRoot, "src/library.js")), true);
   assert.match(aiFeatures, /aiEnrichment: true/);
   assert.equal(fs.existsSync(path.join(aiRoot, "src/enrichment/openai.js")), true);
   assert.equal(fs.existsSync(path.join(aiRoot, "src/enrichment/options.js")), true);

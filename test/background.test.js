@@ -9,6 +9,7 @@ const projectRoot = path.resolve(__dirname, "..");
 const backgroundSource = fs.readFileSync(path.join(projectRoot, "src/background.js"), "utf8");
 const enrichmentBackgroundSource = fs.readFileSync(path.join(projectRoot, "src/enrichment/background.js"), "utf8");
 const openAiSource = fs.readFileSync(path.join(projectRoot, "src/enrichment/openai.js"), "utf8");
+const librarySource = fs.readFileSync(path.join(projectRoot, "src/library.js"), "utf8");
 
 function loadBackground({
   fetchImplementation = fetch,
@@ -18,7 +19,8 @@ function loadBackground({
   initialSettings = null,
   legacyCards = null,
   legacySettings = null,
-  aiEnrichment = true
+  aiEnrichment = true,
+  beforeCardsWrite = async () => {}
 } = {}) {
   const localStorage = initialCards
     ? { "phraselet.cards": structuredClone(initialCards) }
@@ -43,10 +45,11 @@ function loadBackground({
   const storageArea = (state) => ({
     async get(keys) {
       const requestedKeys = Array.isArray(keys) ? keys : [keys];
-      return Object.fromEntries(requestedKeys.map((key) => [key, state[key]]));
+      return structuredClone(Object.fromEntries(requestedKeys.map((key) => [key, state[key]])));
     },
     async set(values) {
-      Object.assign(state, values);
+      if (values["phraselet.cards"]) await beforeCardsWrite(values["phraselet.cards"]);
+      Object.assign(state, structuredClone(values));
     },
     async remove(keys) {
       const removedKeys = Array.isArray(keys) ? keys : [keys];
@@ -134,10 +137,14 @@ function loadBackground({
   const enrichmentRuntimeSource = `(function () {\n${enrichmentBackgroundSource
     .replace('import { requestExplanation } from "./openai.js";', "const requestExplanation = globalThis.__requestExplanation;")
     .replace("export function createEnrichmentRuntime", "function createEnrichmentRuntime")}\nglobalThis.__createEnrichmentRuntime = createEnrichmentRuntime;\n})();`;
+  vm.runInContext(`(function () {\n${librarySource
+    .replace('import { EXPORT_SCHEMA_VERSION } from "./export.js";', 'const EXPORT_SCHEMA_VERSION = 3;')
+    .replaceAll('export ', '')}\nglobalThis.__library = { MAX_LIBRARY_BYTES, MAX_LIBRARY_CARDS, MAX_IMPORT_FILE_BYTES, prepareImportedCards, mergeImportedCards };\n})();`, context);
   const runnableBackgroundSource = backgroundSource.replace(
     'import { FEATURES, loadEnrichmentRuntime } from "./features.js";',
     `const FEATURES = Object.freeze({ aiEnrichment: ${aiEnrichment} });\nconst loadEnrichmentRuntime = async () => FEATURES.aiEnrichment ? ({ createEnrichmentRuntime: globalThis.__createEnrichmentRuntime }) : null;`
-  );
+  ).replace('import { MAX_LIBRARY_BYTES, MAX_LIBRARY_CARDS, MAX_IMPORT_FILE_BYTES, prepareImportedCards, mergeImportedCards } from "./library.js";',
+    'const { MAX_LIBRARY_BYTES, MAX_LIBRARY_CARDS, MAX_IMPORT_FILE_BYTES, prepareImportedCards, mergeImportedCards } = globalThis.__library;');
   vm.runInContext(providerSource, context, { filename: "src/enrichment/openai.js" });
   vm.runInContext(enrichmentRuntimeSource, context, { filename: "src/enrichment/background.js" });
   vm.runInContext(runnableBackgroundSource, context, { filename: "src/background.js" });
@@ -150,7 +157,8 @@ function loadBackground({
     installedHandler,
     localStorage,
     runtimeMessageHandler,
-    storageAccessLevels
+    storageAccessLevels,
+    ready: vm.runInContext("storageMigrationPromise", context)
   };
 }
 
@@ -159,6 +167,142 @@ function captureFromPopup(runtimeMessageHandler) {
     type: "PHRASELET_SAVE_ACTIVE_SELECTION"
   });
 }
+
+test("a pending capture and popup edit retain both changes", async () => {
+  let enterWrite;
+  let releaseWrite;
+  const entered = new Promise((resolve) => { enterWrite = resolve; });
+  const released = new Promise((resolve) => { releaseWrite = resolve; });
+  const app = loadBackground({
+    aiEnrichment: false,
+    initialCards: [{ id: "existing", selectedText: "Existing", status: "current", tags: [] }],
+    injectedResult: { selectedText: "New capture", sourceUrl: "https://example.com/new" },
+    beforeCardsWrite: async (cards) => {
+      if (cards.some((card) => card.selectedText === "New capture") && !cards.find((card) => card.id === "existing")?.note) {
+        enterWrite();
+        await released;
+      }
+    }
+  });
+  await app.ready;
+  const capture = captureFromPopup(app.runtimeMessageHandler);
+  await entered;
+  const edit = sendRuntimeMessage(app.runtimeMessageHandler, {
+    type: "PHRASELET_UPDATE_CARD", cardId: "existing", changes: { note: "Keep this note" }
+  });
+  releaseWrite();
+  const results = await Promise.all([capture, edit]);
+  assert.ok(results.every((result) => result.ok));
+  assert.equal(app.localStorage["phraselet.cards"].length, 2);
+  assert.equal(app.localStorage["phraselet.cards"].find((card) => card.id === "existing").note, "Keep this note");
+});
+
+test("simultaneous captures of the same phrase produce one stable card", async () => {
+  const app = loadBackground({ aiEnrichment: false, injectedResult: {
+    selectedText: "One phrase", sourceUrl: "https://example.com/same"
+  } });
+  const results = await Promise.all([
+    captureFromPopup(app.runtimeMessageHandler), captureFromPopup(app.runtimeMessageHandler)
+  ]);
+  assert.ok(results.every((result) => result.ok));
+  assert.equal(app.localStorage["phraselet.cards"].length, 1);
+  assert.equal(results[0].cardId, results[1].cardId);
+  assert.equal(results.filter((result) => result.duplicate).length, 1);
+});
+
+test("imports and tag renames merge with the latest library while preserving edits", async () => {
+  const app = loadBackground({ aiEnrichment: false, initialCards: [
+    { id: "one", selectedText: "First", status: "current", tags: ["old"] }
+  ] });
+  const requests = [
+    { type: "PHRASELET_UPDATE_CARD", cardId: "one", changes: { note: "Retain me" } },
+    { type: "PHRASELET_IMPORT_CARDS", payload: { schemaVersion: 2, cards: [
+      { id: "one", selectedText: "First", status: "learning", tags: ["imported"] },
+      { id: "two", selectedText: "Second", status: "known", tags: ["old"] }
+    ] } },
+    { type: "PHRASELET_UPDATE_TAG", tag: "old", replacement: "new" },
+    { type: "PHRASELET_BULK_UPDATE_CARDS", cardIds: ["one"], operation: "archive" }
+  ];
+  const results = await Promise.all(requests.map((request) => sendRuntimeMessage(app.runtimeMessageHandler, request)));
+  assert.ok(results.every((result) => result.ok));
+  const [one, two] = app.localStorage["phraselet.cards"];
+  assert.equal(one.note, "Retain me");
+  assert.deepEqual(one.tags, ["new", "imported"]);
+  assert.deepEqual(two.tags, ["new"]);
+  assert.equal(one.status, "archived");
+  assert.equal(two.status, "archived");
+  assert.deepEqual(structuredClone(results[1]), { ok: true, added: 1, updated: 1 });
+});
+
+test("edits cannot resurrect deleted cards and a rejected write does not block later writes", async () => {
+  const app = loadBackground({ aiEnrichment: false, initialCards: [
+    { id: "deleted", selectedText: "Delete me", status: "current", tags: [] },
+    { id: "kept", selectedText: "Keep me", status: "current", tags: [] }
+  ] });
+  const requests = [
+    { type: "PHRASELET_BULK_UPDATE_CARDS", cardIds: ["deleted"], operation: "delete" },
+    { type: "PHRASELET_UPDATE_CARD", cardId: "deleted", changes: { note: "Stale edit" } },
+    { type: "PHRASELET_UPDATE_CARD", cardId: "kept", changes: { note: "Still works" } }
+  ];
+  const results = await Promise.all(requests.map((request) => sendRuntimeMessage(app.runtimeMessageHandler, request)));
+  assert.equal(results[1].ok, false);
+  assert.match(results[1].error, /deleted/);
+  assert.equal(results[2].ok, true);
+  assert.equal(app.localStorage["phraselet.cards"].length, 1);
+  assert.equal(app.localStorage["phraselet.cards"][0].note, "Still works");
+});
+
+test("editing one field preserves simultaneous tags, archive state, and existing enrichment", async () => {
+  const app = loadBackground({ aiEnrichment: false, initialCards: [
+    { id: "one", selectedText: "First", status: "current", tags: [], ai: { summary: "Explanation" } }
+  ] });
+  const requests = [
+    { type: "PHRASELET_BULK_UPDATE_CARDS", cardIds: ["one"], operation: "add_tag", tag: "Keep" },
+    { type: "PHRASELET_BULK_UPDATE_CARDS", cardIds: ["one"], operation: "archive" },
+    { type: "PHRASELET_UPDATE_CARD", cardId: "one", changes: { note: "Edited", status: "current", ai: {}, tags: [] } }
+  ];
+  const results = await Promise.all(requests.map((request) => sendRuntimeMessage(app.runtimeMessageHandler, request)));
+  assert.ok(results.every((result) => result.ok));
+  assert.deepEqual(app.localStorage["phraselet.cards"][0], {
+    id: "one", selectedText: "First", status: "archived", tags: ["Keep"], ai: { summary: "Explanation" }, note: "Edited"
+  });
+});
+
+test("large formatted backups restore through the background import handler", async () => {
+  const exportSource = fs.readFileSync(path.join(projectRoot, "src/export.js"), "utf8");
+  const exports = vm.createContext({});
+  vm.runInContext(exportSource.replaceAll("export ", ""), exports);
+  const source = Array.from({ length: 2300 }, (_, i) => ({
+    id: String(i), selectedText: `Phrase ${i}`, contextText: "x".repeat(1200),
+    sourceTitle: "Test", sourceUrl: `https://example.com/${i}`, createdAt: "2026-09-14T00:00:00.000Z",
+    status: i % 2 ? "current" : "archived", note: "n".repeat(1800), tags: ["backup"],
+    ai: { status: "not_requested", summary: "", contextMeaning: "", examples: [], relatedTerms: [], error: "" }
+  }));
+  const file = exports.createExportFile(source, "json");
+  assert.ok(Buffer.byteLength(file.content) > 5 * 1024 * 1024);
+  assert.ok(Buffer.byteLength(JSON.stringify(source)) < 8 * 1024 * 1024);
+  const app = loadBackground({ aiEnrichment: false });
+  const result = await sendRuntimeMessage(app.runtimeMessageHandler, {
+    type: "PHRASELET_IMPORT_CARDS", payload: JSON.parse(file.content)
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.added, source.length);
+  assert.equal(app.localStorage["phraselet.cards"].length, source.length);
+  source.forEach((card, index) => assert.deepEqual(app.localStorage["phraselet.cards"][index], card));
+});
+
+test("imports over the normalized library limit fail without changing existing cards", async () => {
+  const app = loadBackground({ aiEnrichment: false, initialCards: [
+    { id: "keep", selectedText: "Keep", status: "current", tags: [] }
+  ] });
+  const payload = { schemaVersion: 3, cards: Array.from({ length: 3000 }, (_, i) => ({
+    id: String(i), selectedText: `Phrase ${i}`, contextText: "x".repeat(3000), note: "n".repeat(2000)
+  })) };
+  const result = await sendRuntimeMessage(app.runtimeMessageHandler, { type: "PHRASELET_IMPORT_CARDS", payload });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /library is full/);
+  assert.deepEqual(app.localStorage["phraselet.cards"], [{ id: "keep", selectedText: "Keep", status: "current", tags: [] }]);
+});
 
 function sendRuntimeMessage(runtimeMessageHandler, message) {
   return new Promise((resolve) => {
