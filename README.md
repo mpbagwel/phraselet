@@ -39,7 +39,7 @@ Phraselet's feature set includes:
 - Gesture-scoped page access, bounded capture and import data, and restricted extension storage
 - No backend service required
 
-### Importing and exporting phrases
+### Importing and exporting
 
 JSON is Phraselet's lossless backup format. Phraselet accepts compatible schema versions 1–3. You can also export your library as Markdown or CSV, but can't import them back into Phraselet.
 
