@@ -2,6 +2,8 @@
 
 Phraselet is a local-first Chrome extension for saving words and phrases as you encounter them online. It captures the selected text, source URL, page title, and surrounding context. Windows and Linux are supported too.
 
+![Phraselet capturing a phrase from a webpage](store-assets/upload/phraselet-capture.jpg)
+
 ## Install the extension
 
 1. In Chrome, visit `chrome://extensions`.
