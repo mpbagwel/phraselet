@@ -1,15 +1,15 @@
-# Phraselet for Chrome on macOS
+# Phraselet for Chrome
 
 Phraselet is a local-first Chrome extension for saving words and phrases as you encounter them online. It captures the selected text, source URL, page title, and surrounding context. Windows and Linux are supported too.
 
-## Install on macOS
+## Install the extension
 
 1. In Chrome, visit `chrome://extensions`.
 2. Enable **Developer mode**.
 3. Choose **Load unpacked**.
 4. Select this repository folder.
 
-## Use it
+## Using Phraselet
 
 1. Highlight a word or phrase on a regular webpage.
 2. Press `Option+Shift+P` or right-click and choose **Save to Phraselet**. You can change the shortcut in Phraselet's **Settings → Change shortcut**. On Windows and Linux, the default is `Alt+Shift+P`.
@@ -19,7 +19,9 @@ Selections over 500 characters are shortened at the nearest word boundary before
 
 Cards are stored in `chrome.storage.local` on your machine. Phraselet accesses page content only when you invoke a save action. It doesn't install a persistent script on every site.
 
-## Base build
+## Feature set
+
+Phraselet's feature set includes:
 
 - Context-menu capture for highlighted text
 - Source title, URL, and nearby context capture
@@ -37,7 +39,7 @@ Cards are stored in `chrome.storage.local` on your machine. Phraselet accesses p
 - Gesture-scoped page access, bounded capture and import data, and restricted extension storage
 - No backend service required
 
-### Importing and exporting
+### Importing and exporting phrases
 
 JSON is Phraselet's lossless backup format. Phraselet accepts compatible schema versions 1–3. You can also export your library as Markdown or CSV, but can't import them back into Phraselet.
 
