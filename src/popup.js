@@ -567,7 +567,8 @@ function renderCard(card) {
     : "";
   const relatedPhrases = renderRelatedPhrases(card, relatedPanelId);
   const editor = renderCardEditor(card, cardId, editPanelId);
-  const context = card.contextText
+  const contextText = cleanText(card.contextText);
+  const context = contextText && contextText !== cleanText(card.selectedText)
     ? `<div id="${contextPanelId}" class="card-disclosure-panel source-context" data-panel-id="context" hidden><p>${escapeHtml(card.contextText)}</p></div>`
     : "";
   const isSelected = selectedCardIds.has(card.id);
