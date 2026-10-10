@@ -32,7 +32,7 @@ Permission explanations:
 
 ## Release package
 
-`npm run package:base` creates `dist/phraselet-base-<version>.zip` with only these runtime files and directories. `npm run package:ai-dev` creates a separate internal build with the enrichment provider and OpenAI host permission.
+`npm run package:base` creates `dist/phraselet-base-<version>.zip` with only these runtime files and directories. `npm run package:ai-dev` creates a separate internal build with the enrichment provider and OpenAI host permission. This experimental development artifact is not a publicly supported edition or a store-submission package; its data handling is documented in [PRIVACY-AI.md](PRIVACY-AI.md).
 
 - `manifest.json`
 - `popup.html`, `options.html`, and `onboarding.html`

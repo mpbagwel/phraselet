@@ -209,7 +209,7 @@ cardsEl.addEventListener("click", async (event) => {
       });
     }
   } catch (error) {
-    showLibraryStatus(error instanceof Error ? error.message : "Could not update the phrase", true);
+    showLibraryStatus(error instanceof Error ? error.message : "Could not update the card", true);
   }
 });
 
@@ -260,7 +260,7 @@ cardsEl.addEventListener("submit", async (event) => {
     }
 
     if (tags.length >= 12) {
-      showLibraryStatus("A phrase can have up to 12 tags.", true);
+      showLibraryStatus("A card can have up to 12 tags.", true);
       return;
     }
 
@@ -283,7 +283,7 @@ async function saveCardEdits(form) {
   const note = cleanMultilineText(form.elements.namedItem("note")?.value, 2000);
 
   if (!selectedText) {
-    showLibraryStatus("A phrase cannot be empty.", true);
+    showLibraryStatus("Saved text cannot be empty.", true);
     return;
   }
 
@@ -292,7 +292,7 @@ async function saveCardEdits(form) {
     && cardIdentity(candidate) === cardIdentity({ selectedText, sourceUrl: card.sourceUrl })
   ));
   if (duplicate) {
-    showLibraryStatus("That phrase is already saved from this page.", true);
+    showLibraryStatus("That text is already saved from this page.", true);
     return;
   }
 
@@ -362,16 +362,16 @@ async function applyBulkAction(operation) {
     });
 
     if (!result?.ok) {
-      showLibraryStatus(result?.error || "Could not update the selected phrases.", true);
+      showLibraryStatus(result?.error || "Could not update the selected cards.", true);
       return;
     }
 
-    const changedPhrases = phraseCount(result.changed);
+    const changedCards = cardCount(result.changed);
     const statusMessage = {
-      add_tag: `Added ${tag} to ${changedPhrases}.`,
-      remove_tag: `Removed ${tag} from ${changedPhrases}.`,
-      archive: `Archived ${changedPhrases}.`,
-      restore: `Restored ${changedPhrases}.`
+      add_tag: `Added ${tag} to ${changedCards}.`,
+      remove_tag: `Removed ${tag} from ${changedCards}.`,
+      archive: `Archived ${changedCards}.`,
+      restore: `Restored ${changedCards}.`
     }[operation];
     showLibraryStatus(statusMessage);
 
@@ -379,7 +379,7 @@ async function applyBulkAction(operation) {
       bulkTagNameEl.value = "";
     }
   } catch {
-    showLibraryStatus("Could not update the selected phrases.", true);
+    showLibraryStatus("Could not update the selected cards.", true);
   } finally {
     setBulkControlsDisabled(false);
     render();
@@ -388,7 +388,7 @@ async function applyBulkAction(operation) {
 
 async function deleteSelectedCards() {
   const count = selectedCardIds.size;
-  if (!count || !window.confirm(`Delete ${phraseCount(count)}? This cannot be undone.`)) {
+  if (!count || !window.confirm(`Delete ${cardCount(count)}? This cannot be undone.`)) {
     return;
   }
 
@@ -401,14 +401,14 @@ async function deleteSelectedCards() {
     });
 
     if (!result?.ok) {
-      showLibraryStatus(result?.error || "Could not delete the selected phrases.", true);
+      showLibraryStatus(result?.error || "Could not delete the selected cards.", true);
       return;
     }
 
     selectedCardIds.clear();
-    showLibraryStatus(`Deleted ${phraseCount(result.changed)}.`);
+    showLibraryStatus(`Deleted ${cardCount(result.changed)}.`);
   } catch {
-    showLibraryStatus("Could not delete the selected phrases.", true);
+    showLibraryStatus("Could not delete the selected cards.", true);
   } finally {
     setBulkControlsDisabled(false);
     render();
@@ -460,8 +460,8 @@ function render() {
   const visibleCards = getVisibleCards(query, selectedTag, selectedStatus);
 
   countEl.textContent = query || selectedTag || selectedStatus !== "current"
-    ? `${visibleCards.length} of ${cards.length} phrases`
-    : visibleCards.length === 1 ? "1 current phrase" : `${visibleCards.length} current phrases`;
+    ? `${visibleCards.length} of ${cards.length} cards`
+    : cardCount(visibleCards.length);
   exportCardsEl.disabled = cards.length === 0;
   toggleSelectionEl.disabled = cards.length === 0 && !selectionMode;
   if (!cards.length) {
@@ -513,7 +513,7 @@ function renderBulkActions(visibleCards) {
   bulkSelectAllEl.disabled = visibleIds.length === 0;
   bulkSelectAllLabelEl.textContent = visibleIds.length
     ? `Select all ${visibleIds.length} matching`
-    : "No matching phrases";
+    : "No matching cards";
   bulkSelectionCountEl.textContent = `${selectedCardIds.size} selected`;
   clearSelectionEl.disabled = !hasSelection;
   bulkTagNameEl.disabled = !hasSelection;
@@ -689,7 +689,7 @@ function renderCardEditor(card, cardId, panelId) {
     <div id="${panelId}" class="card-editor card-disclosure-panel" data-panel-id="edit" hidden>
       <form data-action="edit-card" data-id="${cardId}">
         <label>
-          <span>Phrase</span>
+          <span>Saved text</span>
           <input name="selectedText" type="text" maxlength="500" value="${escapeAttribute(card.selectedText)}" required>
         </label>
         <label>
@@ -743,10 +743,10 @@ function emptyState(query, selectedTag, selectedStatus) {
   const hasCards = cards.length > 0;
   const heading = !hasCards
     ? "Save what made you pause."
-    : filtered ? "No matches" : "No current phrases";
+    : filtered ? "No matches" : "No current cards";
   const copy = !hasCards
     ? "Highlight text on a page, use your Phraselet shortcut, or right-click and choose Save to Phraselet."
-    : filtered ? "Try a broader search or clear a filter." : "Restore an archived phrase or save something new.";
+    : filtered ? "Try a broader search or clear a filter." : "Restore an archived card or save something new.";
   return `
     <section class="empty-state">
       <h2>${heading}</h2>
@@ -774,8 +774,10 @@ function renderTagFilter() {
 
   const selectedTag = tags.find((tag) => normalizeTagKey(tag) === previousValue);
   tagFilterEl.value = selectedTag || "";
+  tagFilterEl.title = selectedTag || "All tags";
   tagFilterEl.disabled = tags.length === 0;
   manageTagEl.disabled = !selectedTag;
+  manageTagEl.hidden = !selectedTag;
 
   if (!tagManagerEl.hidden) {
     if (selectedTag) {
@@ -841,7 +843,7 @@ async function deleteSelectedTag() {
     return;
   }
 
-  if (!window.confirm(`Remove the tag "${currentTag}" from every phrase?`)) {
+  if (!window.confirm(`Remove the tag "${currentTag}" from every card?`)) {
     return;
   }
 
@@ -965,15 +967,15 @@ async function copySelectedPhrases() {
   const selectedCards = getSelectedCards();
   const text = createPlainTextExport(selectedCards);
   if (!text) {
-    showLibraryStatus("Select at least one phrase to copy.", true);
+    showLibraryStatus("Select at least one card to copy.", true);
     return;
   }
 
   try {
     await writeClipboardText(text);
-    showLibraryStatus(`Copied ${phraseCount(selectedCards.length)}.`);
+    showLibraryStatus(`Copied ${cardCount(selectedCards.length)}.`);
   } catch {
-    showLibraryStatus("Could not copy the selected phrases.", true);
+    showLibraryStatus("Could not copy the selected cards.", true);
   }
 }
 
@@ -988,7 +990,7 @@ async function exportBackupNow() {
 
 async function downloadCards(cardList, format, { completeBackup = false, selected = false } = {}) {
   if (!cardList.length) {
-    showLibraryStatus("No saved phrases to export.", true);
+    showLibraryStatus("No saved cards to export.", true);
     return;
   }
 
@@ -1013,7 +1015,7 @@ async function downloadCards(cardList, format, { completeBackup = false, selecte
   if (completeBackup && format === "json") {
     await markBackupCreated().catch(() => undefined);
   }
-  showLibraryStatus(`Exported ${phraseCount(cardList.length)} as ${file.label}.`);
+  showLibraryStatus(`Exported ${cardCount(cardList.length)} as ${file.label}.`);
 }
 
 function getSelectedCards() {
@@ -1116,8 +1118,8 @@ function setCaptureButtonLabel(label) {
   }
 }
 
-function phraseCount(count) {
-  return count === 1 ? "1 phrase" : `${count} phrases`;
+function cardCount(count) {
+  return count === 1 ? "1 card" : `${count} cards`;
 }
 
 function dateStamp() {

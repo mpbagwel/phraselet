@@ -47,11 +47,9 @@ JSON is Phraselet's lossless backup format. Phraselet accepts compatible schema 
 
 JSON imports accept files up to 32 MiB to accommodate formatted backups. The merged library still follows the 5,000-phrase and 8 MiB safeguards. Importing merges into the latest library and doesn't reset the complete-backup reminder. Captures, edits, tags, imports, archive changes, and deletions share a background write queue so that overlapping operations don't overwrite unrelated changes.
 
-## Build targets
+## Packaging
 
-The source tree defaults to the `base` feature configuration. `npm run package:base` creates the local-first Chrome Web Store ZIP without AI provider code, API-key controls, third-party host access, or a standing clipboard permission.
-
-`npm run package:ai-dev` creates a separate internal build that adds its enrichment interface, provider modules, API-key settings, and OpenAI host permission during packaging. It's an experimental development artifact, not a publicly supported edition or store-submission package.
+Run `npm run package` to create the local-first Chrome Web Store ZIP in `dist/`. The package contains no AI provider code, API-key controls, third-party host access, or standing clipboard permission.
 
 ## Development checks
 
@@ -62,7 +60,6 @@ Run `npm run check` to syntax-check the extension scripts and execute the automa
 - [RELEASE.md](RELEASE.md): Tracks the Chrome Web Store submission checklist and manual testing still required.
 - [STORE_LISTING.md](STORE_LISTING.md): Contains the prepared listing copy and permission disclosures.
 - [PRIVACY.md](PRIVACY.md): The policy for the public base build.
-- [PRIVACY-AI.md](PRIVACY-AI.md): Covers the internal AI development path.
 
 The [Phraselet website](https://phraselet-cards.dreamingbigdreams.chatgpt.site) hosts the public [privacy policy](https://phraselet-cards.dreamingbigdreams.chatgpt.site/privacy/) and [support page](https://phraselet-cards.dreamingbigdreams.chatgpt.site/support/).
 

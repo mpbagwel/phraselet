@@ -350,7 +350,7 @@ test("returns the selection error when neither messaging nor injection is availa
   const result = await captureFromPopup(runtimeMessageHandler);
 
   assert.equal(result.ok, false);
-  assert.equal(result.error, "Select a word or phrase first.");
+  assert.equal(result.error, "Select some text on the page first.");
   assert.equal(localStorage["phraselet.cards"], undefined);
 });
 
@@ -449,7 +449,7 @@ test("refuses new captures after the library card limit", async () => {
   const result = await captureFromPopup(runtimeMessageHandler);
 
   assert.equal(result.ok, false);
-  assert.equal(result.error, "Phraselet can store up to 5000 phrases.");
+  assert.equal(result.error, "Phraselet can store up to 5000 cards.");
   assert.equal(localStorage["phraselet.cards"].length, 5000);
 });
 

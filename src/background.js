@@ -179,7 +179,7 @@ async function saveSelectionFromTab(tabId, fallback) {
   const selectedText = truncatePhrase(fullSelection, MAX_PHRASE_LENGTH);
 
   if (!selectedText) {
-    return { ok: false, error: "Select a word or phrase first." };
+    return { ok: false, error: "Select some text on the page first." };
   }
 
   const sourceTitle = cleanText(payload.sourceTitle || fallback.sourceTitle).slice(0, MAX_TITLE_LENGTH);
@@ -433,7 +433,7 @@ async function bulkUpdateCards(message) {
   const operation = message.operation;
 
   if (!cardIds.length) {
-    return { ok: false, error: "Select at least one phrase." };
+    return { ok: false, error: "Select at least one card." };
   }
 
   if (!["add_tag", "remove_tag", "archive", "restore", "delete"].includes(operation)) {
@@ -584,17 +584,17 @@ async function updateCard({ cardId, changes }) {
     }
   }
   if (Object.hasOwn(patch, "selectedText") && !patch.selectedText) {
-    throw new Error("A phrase cannot be empty");
+    throw new Error("Saved text cannot be empty");
   }
   return mutateCards((cards) => {
     const existing = cards.find((card) => card.id === cardId);
     if (!existing) {
-      throw new Error("This phrase was deleted — reopen the library to refresh");
+      throw new Error("This card was deleted — reopen the library to refresh");
     }
     const updated = { ...existing, ...patch };
     if (cards.some((card) => card.id !== cardId
       && cardIdentity(card.selectedText, card.sourceUrl) === cardIdentity(updated.selectedText, updated.sourceUrl))) {
-      throw new Error("That phrase is already saved from this page");
+      throw new Error("That text is already saved from this page");
     }
     return {
       cards: [updated, ...cards.filter((card) => card.id !== cardId)],
@@ -665,13 +665,13 @@ function mutateCards(mutator) {
 
 function assertLibraryWithinLimits(nextCards, currentCards) {
   if (nextCards.length > MAX_LIBRARY_CARDS && nextCards.length >= currentCards.length) {
-    throw new Error(`Phraselet can store up to ${MAX_LIBRARY_CARDS} phrases.`);
+    throw new Error(`Phraselet can store up to ${MAX_LIBRARY_CARDS} cards.`);
   }
 
   const nextBytes = new TextEncoder().encode(JSON.stringify(nextCards)).byteLength;
   const currentBytes = new TextEncoder().encode(JSON.stringify(currentCards)).byteLength;
   if (nextBytes > MAX_LIBRARY_BYTES && nextBytes >= currentBytes) {
-    throw new Error("Phraselet's local library is full. Export or delete phrases before adding more.");
+    throw new Error("Phraselet's local library is full. Export or delete cards before adding more.");
   }
 }
 
