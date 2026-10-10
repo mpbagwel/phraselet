@@ -1,6 +1,6 @@
 # Phraselet Privacy Policy
 
-Last updated: September 13, 2026
+Last updated: October 10, 2026
 
 Phraselet is published by Phraselet. Support is available at [mpbagwell.dev@gmail.com](mailto:mpbagwell.dev@gmail.com).
 
@@ -37,6 +37,14 @@ Phraselet limits extension storage access to trusted extension pages. Because th
 ## Chrome Web Store Limited Use
 
 Phraselet's use of information received from Chrome APIs complies with the Chrome Web Store User Data Policy, including its Limited Use requirements. Phraselet uses this information only to provide and improve its user-facing phrase-saving and organization features.
+
+## Website analytics
+
+The Phraselet website, including its homepage, support page, and this privacy page, uses Google Analytics to understand visits and improve the website. Google Analytics uses cookies and collects information such as pages viewed, traffic sources, browser and device information, and interactions with the website. This information is sent to Google. We also measure clicks on the homepage's Chrome Web Store link; a click does not tell us whether someone installed the extension.
+
+Website analytics does not access your saved phrases, notes, source pages, or activity inside the Phraselet extension. The extension itself does not use analytics.
+
+Read [how Google uses information from sites that use its services](https://policies.google.com/technologies/partner-sites). You can restrict cookies through your browser settings or use [Google's Analytics opt-out browser add-on](https://tools.google.com/dlpage/gaoptout).
 
 ## Changes
 
