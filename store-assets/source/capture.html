@@ -11,7 +11,34 @@
         <p>Saving the source beside the phrase keeps that moment understandable later.</p>
         <div class="shortcut">Save selection <kbd>Option+Shift+P</kbd></div>
       </article>
-      <div class="toast">Saved “attention turns passing language…”</div>
+      <!-- Capture toast start -->
+      <div id="phraselet-toast-host"><template shadowrootmode="open">
+      <style>
+        :host { all: initial; }
+        [data-toast] {
+          position: fixed;
+          right: 18px;
+          bottom: 18px;
+          z-index: 2147483647;
+          max-width: min(360px, calc(100vw - 36px));
+          padding: 11px 13px;
+          border-radius: 8px;
+          box-shadow: 0 10px 30px rgb(23 32 38 / 22%);
+          color: #fff;
+          font: 13px/1.35 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          opacity: 0;
+          overflow-wrap: anywhere;
+          pointer-events: none;
+          transform: translateY(8px);
+          transition: opacity 150ms ease, transform 150ms ease;
+        }
+        [data-toast][data-tone="success"] { background: #255f85; }
+        [data-toast][data-tone="error"] { background: #a43d3d; }
+        [data-toast][data-visible="true"] { opacity: 1; transform: translateY(0); }
+      </style>
+      <div data-toast="" data-tone="success" data-visible="true" role="status" aria-live="polite">Saved "attention turns passing language into something we can return to."</div>
+    </template></div>
+      <!-- Capture toast end -->
     </main>
   </body>
 </html>

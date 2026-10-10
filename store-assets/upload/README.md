@@ -13,10 +13,14 @@ Upload the individual image files to the matching fields in **Store listing → 
 
 Use all four screenshots, with the library screenshot first to show the interface immediately. At least one screenshot is required. The optional marquee tile and promotional video are not included.
 
-These files reuse the existing Phraselet branding and staged product illustrations in `store-assets/`; they are not new live Chrome captures. Screenshot and promo filenames now use `.jpg` to match their actual JPEG encoding. They have no alpha channel. The PNG icon retains its transparent padding.
+The four screenshots reflect Phraselet 0.1.2. Library, bulk actions, and portability use the actual popup HTML, JavaScript, and styles with seeded example cards and a mocked Chrome API. The capture image uses the shipping confirmation toast and shows Option+Shift+P. Browser framing and the capture webpage are staged illustrations, not screenshots of a user's live browser.
 
-Dimensions, image formats, and alpha channels were checked on September 17, 2026, and every image was visually reviewed.
+Screenshot masters in `../screenshots/` are PNG; upload screenshots are JPEG without alpha. The PNG icon retains its transparent padding. The promo tile and store icon are unchanged.
+
+The four screenshots were refreshed, checked at 1280 × 800, and visually reviewed on October 9, 2026.
+
+To regenerate them from the current popup, provide the optional `playwright` and `sharp` Node modules and a Playwright Chromium installation, then run `node scripts/render-store-screenshots.cjs` from the repository root. This also updates the standalone HTML previews in `../source/` and the README's `phraselet-capture.jpg` mirror. The generator does not change extension data or publish assets.
 
 Requirements: [Chrome Web Store image guidance](https://developer.chrome.com/docs/webstore/images).
 
-The extension package is uploaded separately from these listing images: `dist/phraselet-base-0.1.0.zip`.
+The extension package is uploaded separately from these listing images: `dist/phraselet-base-0.1.2.zip`.

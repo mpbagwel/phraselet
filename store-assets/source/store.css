@@ -83,19 +83,6 @@ mark {
   color: inherit;
 }
 
-.toast {
-  position: absolute;
-  right: 54px;
-  bottom: 46px;
-  border-radius: 11px;
-  padding: 15px 18px;
-  background: #255f85;
-  color: #fff;
-  font-size: 17px;
-  font-weight: 680;
-  box-shadow: 0 16px 38px rgb(24 48 62 / 25%);
-}
-
 .shortcut {
   display: inline-flex;
   align-items: center;
@@ -134,9 +121,6 @@ mark {
 
 .popup-mock button, .popup-mock input, .popup-mock select { pointer-events: none; }
 
-.popup-mock .phrase-card { gap: 8px; }
-.popup-mock .cards { gap: 9px; }
-
 .demo-note {
   position: absolute;
   left: 80px;
@@ -147,7 +131,7 @@ mark {
   font-weight: 730;
 }
 
-.bulk-demo .demo-note::before { content: "Organize several phrases in one pass."; }
+.bulk-demo .demo-note::before { content: "Organize several cards in one pass."; }
 .library-demo .demo-note::before { content: "Search, filter, and keep the source attached."; }
 .portability-demo .demo-note::before { content: "Your library, in formats you can use anywhere."; }
 
