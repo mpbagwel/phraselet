@@ -1080,11 +1080,17 @@ details[open] > summary { color: var(--ink-soft); }
 }
 
 .page-label {
-  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #c4d4dc;
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  line-height: 18px;
 }
 
 .options-layout {
@@ -1121,7 +1127,7 @@ details[open] > summary { color: var(--ink-soft); }
 
 .shortcut-card {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   max-width: 390px;
@@ -1166,6 +1172,19 @@ details[open] > summary { color: var(--ink-soft); }
   gap: 4px 10px;
 }
 
+.options-intro > p.shortcut-help,
+.onboarding-hero > p.shortcut-help {
+  margin-top: 10px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.shortcut-help .text-button {
+  min-height: 28px;
+  padding: 0 4px;
+}
+
 .options-panel {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -1181,13 +1200,6 @@ details[open] > summary { color: var(--ink-soft); }
 }
 
 .settings-section + .settings-section { border-top: 1px solid var(--line); }
-
-.section-heading {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: start;
-  gap: 13px;
-}
 
 .section-number {
   display: grid;
@@ -1206,7 +1218,6 @@ details[open] > summary { color: var(--ink-soft); }
 .field-group {
   display: grid;
   gap: 7px;
-  margin-left: 41px;
 }
 
 .field-group > label {
@@ -1393,7 +1404,7 @@ details[open] > summary { color: var(--ink-soft); }
 .onboarding-panel > .status-line { min-height: 0; padding: 0 30px 18px; background: var(--paper-soft); }
 .onboarding-panel > .status-line:empty { display: none; }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .options-topbar { padding: 20px 22px; }
 
   .options-layout {
@@ -1418,8 +1429,11 @@ details[open] > summary { color: var(--ink-soft); }
 }
 
 @media (max-width: 500px) {
+  .shortcut-card { grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; }
+  .shortcut-card kbd { grid-column: 2; justify-self: start; }
+  .onboarding-shortcut { align-items: flex-start; flex-direction: column; gap: 8px; }
+
   .settings-section { padding: 22px 18px; }
-  .field-group { margin-left: 0; }
 
   .options-footer {
     align-items: stretch;

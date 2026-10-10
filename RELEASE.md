@@ -1,5 +1,19 @@
 # Phraselet Release Checklist
 
+## 0.1.2 — October 9, 2026
+
+- Refined popup controls, search and card-count copy, tag editing, and export scope.
+- Fixed toolbar icon transparency for dark browser themes and sharpened the settings icon.
+- Suppressed surrounding context when it repeats the saved text.
+- Updated welcome and settings copy, added page badges, and removed the single settings-section number.
+- Fixed joined heading words and page overflow when resizing; adjusted shortcut cards for narrow windows.
+- Displayed the default shortcut as **Option+Shift+P**, preserved custom assignments, and added guidance when Chrome reports no assigned shortcut. The manifest default remains `Alt+Shift+P` (`Option+Shift+P` on macOS).
+- Added persistent preference-save errors and allowed retry without losing unrelated settings.
+
+Validation: 45 automated tests, syntax checks, and base/AI development package-boundary checks passed. Browser previews verified both pages from 320–1100 pixels wide, shortcut setup links, and preference-save failure/retry behavior using mocked Chrome APIs. These checks do not confirm physical keyboard capture or an installed-extension update.
+
+Store upload artifact: `dist/phraselet-base-0.1.2.zip`.
+
 ## Required before Chrome Web Store submission
 
 - [x] Set the publisher name to Phraselet and the support contact to `mpbagwell.dev@gmail.com`.
@@ -15,7 +29,7 @@
 - [ ] Verify JSON import, JSON/Markdown/CSV export, selected-phrase copy/export, backup reminders, current/archived views, bulk actions, onboarding, and keyboard shortcuts.
 - [ ] Run `npm run check` from a clean checkout.
 - [x] Run `npm run package:base` and inspect the generated ZIP before upload.
-- [ ] Increment `version` in both `manifest.json` and `package.json` for every upload.
+- [x] Increment `version` in both `manifest.json` and `package.json` for the 0.1.2 upload.
 
 ## Store positioning
 

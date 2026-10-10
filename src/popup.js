@@ -742,10 +742,10 @@ function emptyState(query, selectedTag, selectedStatus) {
   const filtered = query || selectedTag || selectedStatus !== "current";
   const hasCards = cards.length > 0;
   const heading = !hasCards
-    ? "Save what made you pause."
+    ? "Save what made you pause"
     : filtered ? "No matches" : "No current cards";
   const copy = !hasCards
-    ? "Highlight text on a page, use your Phraselet shortcut, or right-click and choose Save to Phraselet."
+    ? "Highlight text on a webpage, use your Phraselet shortcut, or right-click and choose “Save to Phraselet”."
     : filtered ? "Try a broader search or clear a filter." : "Restore an archived card or save something new.";
   return `
     <section class="empty-state">

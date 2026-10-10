@@ -9,6 +9,7 @@ const statusEl = document.querySelector("#status");
 const onboardingEl = document.querySelector("#view-onboarding");
 const changeShortcutEl = document.querySelector("#change-shortcut");
 let enrichmentOptions = null;
+let statusTimer;
 
 document.addEventListener("DOMContentLoaded", init);
 saveEl.addEventListener("click", saveOptions);
@@ -32,6 +33,7 @@ async function init() {
 
 async function saveOptions() {
   saveEl.disabled = true;
+  showStatus("Saving…");
   try {
     const settings = await getSettings();
     await chrome.storage.local.set({
@@ -41,7 +43,9 @@ async function saveOptions() {
         afterSave: normalizeAfterSave(afterSaveEl.value)
       }
     });
-    showStatus("Options saved");
+    showStatus("Option saved");
+  } catch {
+    showStatus("Could not save preferences. Try again.", true);
   } finally {
     saveEl.disabled = false;
   }
@@ -59,10 +63,14 @@ function normalizeAfterSave(value) {
   return value === "open_popup" ? "open_popup" : "confirmation";
 }
 
-function showStatus(message) {
+function showStatus(message, isError = false) {
+  clearTimeout(statusTimer);
   const displayMessage = String(message ?? "").trim().replace(/[.!]+$/u, "");
   statusEl.textContent = displayMessage;
-  setTimeout(() => {
-    statusEl.textContent = "";
-  }, 1800);
+  statusEl.classList.toggle("is-error", isError);
+  if (!isError) {
+    statusTimer = setTimeout(() => {
+      statusEl.textContent = "";
+    }, 1800);
+  }
 }

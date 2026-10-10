@@ -3,12 +3,10 @@ const SETTINGS_KEY = "phraselet.settings";
 export function mountEnrichmentOptions({ settings, showStatus }) {
   const slot = document.querySelector("#enrichment-settings-slot");
   const actions = document.querySelector("#settings-actions");
-  const captureNumber = document.querySelector("#capture-section-number");
 
   slot.innerHTML = `
     <div class="settings-section">
       <div class="section-heading">
-        <span class="section-number">01</span>
         <div>
           <h2>AI explanations</h2>
           <p>Optional context, examples, and related terms for every phrase.</p>
@@ -39,7 +37,6 @@ export function mountEnrichmentOptions({ settings, showStatus }) {
   clearKey.type = "button";
   clearKey.textContent = "Clear API key";
   actions.prepend(clearKey);
-  captureNumber.textContent = "02";
 
   const apiKey = document.querySelector("#api-key");
   const model = document.querySelector("#model");
