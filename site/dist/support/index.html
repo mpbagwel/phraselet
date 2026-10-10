@@ -17,27 +17,38 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='17' fill='%23416f86'/%3E%3Cpath d='M20 17h24v32L32 42 20 49V17Z' fill='white'/%3E%3Cpath d='M27 23v12M37 23v12' stroke='%23416f86' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="../styles.css">
   </head>
-  <body>
+  <body class="resource-page">
     <header class="site-header">
       <a class="brand" href="../"><img src="../icon-128.png" alt=""><span>Phraselet</span></a>
       <nav aria-label="Primary navigation"><a href="../privacy/">Privacy</a><a href="./" aria-current="page">Support</a></nav>
     </header>
-    <main class="document">
+    <main class="resource-layout">
+      <header class="resource-intro">
       <p class="eyebrow">Phraselet</p>
       <h1>Support</h1>
       <p class="meta">Help with the Phraselet Chrome extension</p>
-
+      </header>
+      <div class="resource-panel">
+        <section class="resource-section">
       <h2>Contact</h2>
       <p>Email <a href="mailto:mpbagwell.dev@gmail.com">mpbagwell.dev@gmail.com</a> with a short description of what happened and the version of Chrome you're using. Don't include private saved phrases unless they're necessary to explain the issue.</p>
+        </section>
 
+        <section class="resource-section">
       <h2>Before contacting support</h2>
       <ul><li>Confirm Phraselet's enabled at <code>chrome://extensions</code>.</li><li>Reload the page where you're trying to save a phrase.</li><li>Check or change the shortcut at <code>chrome://extensions/shortcuts</code>.</li><li>Remember that Chrome's own pages and some protected pages don't allow extensions to read selections.</li></ul>
+        </section>
 
+        <section class="resource-section">
       <h2>Back up your library</h2>
-      <p>Use Export in the Phraselet popup to download a JSON backup. Keep that file somewhere you trust before clearing extension data or reinstalling Chrome.</p>
+      <p>Use <strong>Export</strong> in the Phraselet popup to download a JSON backup. Keep that file somewhere you trust before clearing extension data or reinstalling Chrome.</p>
+        </section>
 
+        <section class="resource-section">
       <h2>Privacy</h2>
       <p>Phraselet's public version stores its library locally and doesn't send it to a support server. Read the complete <a href="../privacy/">privacy policy</a>.</p>
+        </section>
+      </div>
     </main>
     <footer class="site-footer"><p>© 2026 Phraselet</p><div class="footer-links"><a href="../privacy/">Privacy</a><a href="./">Support</a></div></footer>
   </body>
