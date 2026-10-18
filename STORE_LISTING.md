@@ -30,8 +30,9 @@ Use Phraselet to:
 
 - Search your saved phrases, notes, and source context
 - Add notes and tags
+- Collapse all cards for a compact overview, then expand them to see the details
 - Archive phrases without deleting them, then restore them whenever needed
-- Organize several phrases at once with bulk actions
+- Add or remove tags across selected cards and archive or restore them together
 - Export a restorable JSON backup
 - Take your library to notes apps and spreadsheets with Markdown and CSV
 - Copy or export only the phrases you select
@@ -74,7 +75,8 @@ Prepared assets:
 
 - `store-assets/screenshots/01-capture.png` — capture feedback on a webpage
 - `store-assets/screenshots/02-library.png` — search, filters, notes, and tags
-- `store-assets/screenshots/03-bulk-actions.png` — multi-select copy, export, tagging, status, and deletion
+- `store-assets/screenshots/03-bulk-actions.png` — compact selection toolbar with copy, export, and deletion
 - `store-assets/screenshots/04-portability.png` — JSON, Markdown, CSV, and backup reminder
+- `store-assets/screenshots/05-collapsed.png` — compact library overview with Expand all
 - `store-assets/promo-440x280.png` — small promotional image
 - `assets/icon-128.png` — padded store icon

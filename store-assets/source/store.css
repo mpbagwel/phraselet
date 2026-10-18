@@ -121,19 +121,13 @@ mark {
 
 .popup-mock button, .popup-mock input, .popup-mock select { pointer-events: none; }
 
-.demo-note {
-  position: absolute;
-  left: 80px;
-  bottom: 64px;
-  max-width: 500px;
-  color: var(--accent-dark);
-  font-size: 22px;
-  font-weight: 730;
+.library-demo .page-copy,
+.bulk-demo .page-copy,
+.portability-demo .page-copy,
+.collapsed-demo .page-copy {
+  top: 220px;
+  width: 530px;
 }
-
-.bulk-demo .demo-note::before { content: "Organize several cards in one pass."; }
-.library-demo .demo-note::before { content: "Search, filter, and keep the source attached."; }
-.portability-demo .demo-note::before { content: "Your library, in formats you can use anywhere."; }
 
 .promo-stage {
   width: 440px;

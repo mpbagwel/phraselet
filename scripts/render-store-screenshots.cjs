@@ -13,8 +13,15 @@ const scenes = [
   ["capture", "01-capture", "capture"],
   ["library", "02-library", "library"],
   ["bulk", "03-bulk-actions", "bulk-actions"],
-  ["portability", "04-portability", "portability"]
+  ["portability", "04-portability", "portability"],
+  ["collapsed", "05-collapsed", "collapsed"]
 ];
+const sceneCopy = {
+  library: ["Keep the words.<br>Keep the context.", "Search your saved snippets, notes, and sources. Return to the ideas worth keeping."],
+  bulk: ["A little order.<br>A clearer library.", "Tag, archive, copy, or export a selection of cards with a compact set of controls."],
+  portability: ["Your words,<br>where you need them.", "Keep a restorable JSON backup, take Markdown to your notes, or open CSV in a spreadsheet."],
+  collapsed: ["See more of<br>what you’ve saved.", "Collapse every card for a quieter overview. Expand them again when you want the details."]
+};
 
 function fixtureCards(scene) {
   const entries = [
@@ -74,15 +81,22 @@ async function snapshotPopup(browser, scene) {
         await page.locator(`input[data-action="select-card"][data-id="${id}"]`).check();
       }
       assert.equal(await page.locator("#bulk-selection-count").textContent(), "2 selected");
+      await page.locator("#bulk-more").click();
+      assert.equal(await page.locator("#bulk-more-panel").isVisible(), true);
+    } else if (scene === "collapsed") {
+      await page.locator("#toggle-cards").click();
+      assert.equal(await page.locator("#toggle-cards").textContent(), "Expand all");
+      assert.equal(await page.locator(".card-footer").first().isVisible(), false);
     } else {
       assert.equal(await page.locator("#backup-reminder").isVisible(), true);
       await page.locator("#export-cards").click();
       assert.equal(await page.locator(".export-scope").textContent(), "All cards, including archived");
     }
-    await page.locator("#search").evaluate(element => element.blur());
+    await page.evaluate(() => document.activeElement.blur());
+    await page.mouse.move(0, 0);
     assert.deepEqual(errors, []);
     // Preserve live control state in a standalone, script-free HTML preview.
-    const markup = await page.evaluate(() => {
+    const markup = await page.evaluate(scene => {
       for (const input of document.querySelectorAll("input")) {
         input.setAttribute("value", input.value);
         input.toggleAttribute("checked", input.checked);
@@ -93,10 +107,10 @@ async function snapshotPopup(browser, scene) {
       shell.innerHTML = document.body.innerHTML;
       for (const script of shell.querySelectorAll("script")) script.remove();
       for (const hidden of shell.querySelectorAll("[hidden], datalist")) hidden.remove();
-      // The framing shows at most two cards; omit invisible editor and list markup.
-      for (const card of [...shell.querySelectorAll(".phrase-card")].slice(2)) card.remove();
+      // Keep enough cards to fill the framing in each display mode.
+      for (const card of [...shell.querySelectorAll(".phrase-card")].slice(scene === "collapsed" ? 5 : 2)) card.remove();
       return shell.outerHTML;
-    });
+    }, scene);
     const source = `<!doctype html>
 <!-- Generated from popup.html and src/popup.js by scripts/render-store-screenshots.cjs. -->
 <html lang="en">
@@ -104,7 +118,7 @@ async function snapshotPopup(browser, scene) {
   <body class="${scene}-demo">
     <main class="stage">
       <div class="browser-bar" aria-hidden="true"><span class="browser-dots"><i></i><i></i><i></i></span><div class="address"></div></div>
-      <div class="demo-note"></div>
+      <article class="page-copy"><span class="kicker">Phraselet</span><h1>${sceneCopy[scene][0]}</h1><p>${sceneCopy[scene][1]}</p></article>
       <div class="popup-wrap">${markup}</div>
     </main>
   </body>
@@ -119,7 +133,7 @@ async function snapshotPopup(browser, scene) {
 async function main() {
   const browser = await chromium.launch({ headless: true, args: ["--allow-file-access-from-files"] });
   try {
-    for (const scene of ["library", "bulk", "portability"]) await snapshotPopup(browser, scene);
+    for (const scene of ["library", "bulk", "portability", "collapsed"]) await snapshotPopup(browser, scene);
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, colorScheme: "light" });
     for (const [scene, master, upload] of scenes) {
       await page.goto(pathToFileURL(path.join(assets, "source", `${scene}.html`)).href);

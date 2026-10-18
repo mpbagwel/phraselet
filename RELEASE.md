@@ -1,5 +1,18 @@
 # Phraselet Release Checklist
 
+## 0.1.3 — October 18, 2026
+
+- Expand or collapse all cards to switch between detailed reading and a compact overview. Unsaved edits and tag drafts stay intact during the popup session.
+- Manage selected cards with a compact toolbar: apply tag changes together, archive or restore, copy snippets, export, or delete.
+- Keep card actions in a consistent order: Context, Edit, Add tag, Related. Added tags stay beside the snippet, and the tag input stays open for repeated additions.
+- Simplified tag filters and editing, clarified labels, and made hover hints selective with a short delay.
+- Refined note styling, chevrons, control spacing, and keyboard focus borders; gently lightened the library panel while preserving readable contrast.
+- Refreshed store copy and screenshots, including the collapsed library view.
+
+Validation: 48 automated tests, syntax checks, and Base/AI development package-boundary checks passed. Isolated Chromium extension checks covered bulk actions, collapse/expand and draft preservation, toolbar layout, and panel contrast. Store screenshots use the shipping popup with example data. Physical shortcut capture, an installed-extension update, and oldest-supported/current-stable Chrome checks remain on the submission checklist below.
+
+Store upload artifact: `dist/phraselet-base-0.1.3.zip`. Release tag: `phraselet-0.1.3`.
+
 ## 0.1.2 — October 9, 2026
 
 - Refined popup controls, search and card-count copy, tag editing, and export scope.
@@ -27,9 +40,9 @@ Store upload artifact: `dist/phraselet-base-0.1.2.zip`.
 - [ ] Test a clean install and update on the oldest supported Chrome version and current stable Chrome.
 - [ ] Verify capture on ordinary pages, iframes, text inputs, and protected Chrome pages (which should fail gracefully).
 - [ ] Verify JSON import, JSON/Markdown/CSV export, selected-phrase copy/export, backup reminders, current/archived views, bulk actions, onboarding, and keyboard shortcuts.
-- [ ] Run `npm run check` from a clean checkout.
+- [x] Run `npm run check` from a clean checkout.
 - [x] Run `npm run package:base` and inspect the generated ZIP before upload.
-- [x] Increment `version` in both `manifest.json` and `package.json` for the 0.1.2 upload.
+- [x] Increment `version` in both `manifest.json` and `package.json` for the 0.1.3 upload.
 
 ## Store positioning
 
