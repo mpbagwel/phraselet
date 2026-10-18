@@ -52,15 +52,17 @@
 
     <div class="library-toolbar">
       <section class="filter-row" aria-label="Filter cards">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
-        <label class="sr-only" for="tag-filter">Filter by tag</label>
-        <div class="tag-filter-control">
-          <span id="tag-filter-label" aria-hidden="true">All tags</span>
-          <select id="tag-filter" aria-label="Filter by tag">
-            <option value="">All tags</option>
-          </select>
+        <div class="tag-filter-group">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+          <label class="sr-only" for="tag-filter">Filter by tag</label>
+          <div class="tag-filter-control">
+            <span id="tag-filter-label" aria-hidden="true">All tags</span>
+            <select id="tag-filter" aria-label="Filter by tag">
+              <option value="">All tags</option>
+            </select>
+          </div>
+          <button id="manage-tag" class="text-button" type="button" hidden disabled aria-expanded="false" aria-controls="tag-manager">Edit tag</button>
         </div>
-        <button id="manage-tag" class="text-button" type="button" hidden disabled aria-expanded="false" aria-controls="tag-manager">Edit tag</button>
         <label class="sr-only" for="view-filter">Choose card view</label>
         <select id="view-filter" aria-label="Choose card view">
           <option value="current">Current</option>
@@ -93,7 +95,7 @@
         <button id="clear-selection" class="text-button" type="button">Clear</button>
       </div>
       <div class="bulk-toolbar-row">
-        <button id="bulk-tags" class="secondary-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="bulk-tags-panel">Tags <span aria-hidden="true">⌄</span></button>
+        <button id="bulk-tags" class="secondary-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="bulk-tags-panel">Tags <svg class="button-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
         <button id="bulk-move" class="secondary-button" type="button">Archive</button>
         <button id="bulk-more" class="secondary-button" type="button" aria-expanded="false" aria-controls="bulk-more-panel">More <span aria-hidden="true">⋯</span></button>
       </div>
@@ -116,7 +118,7 @@
         <button id="bulk-restore" type="button">Restore archived cards</button>
       </div>
       <div id="bulk-more-panel" class="bulk-popover bulk-menu bulk-menu-right" aria-label="More selection actions" hidden>
-        <button id="bulk-copy" type="button">Copy text</button>
+        <button id="bulk-copy" type="button">Copy snippets</button>
         <button id="bulk-export" type="button">Export…</button>
         <hr>
         <button id="bulk-delete" class="delete-action" type="button">Delete…</button>

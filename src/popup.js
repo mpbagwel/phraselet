@@ -76,6 +76,7 @@ let backupReminder = {};
 let pendingTagSelection = null;
 let selectionMode = false;
 const selectedCardIds = new Set();
+const openCardTagEditors = new Set();
 const bulkTagDraft = new Map();
 let bulkPanel = null;
 let bulkPanelOrigin = null;
@@ -108,6 +109,9 @@ async function init() {
         if (!currentIds.has(id)) {
           selectedCardIds.delete(id);
         }
+      });
+      [...openCardTagEditors].forEach((id) => {
+        if (!currentIds.has(id)) openCardTagEditors.delete(id);
       });
     }
 
@@ -238,6 +242,19 @@ cardsEl.addEventListener("click", async (event) => {
 
   const { action, id } = button.dataset;
 
+  if (action === "toggle-tag-editor") {
+    const form = button.closest("[data-card-id]").querySelector('form[data-action="add-tag"]');
+    form.hidden = !form.hidden;
+    button.setAttribute("aria-expanded", String(!form.hidden));
+    button.querySelector(".disclosure-symbol").textContent = form.hidden ? "+" : "−";
+    if (form.hidden) openCardTagEditors.delete(id);
+    else {
+      openCardTagEditors.add(id);
+      form.elements.namedItem("tag").focus();
+    }
+    return;
+  }
+
   if (action === "toggle-panel") {
     toggleCardPanel(button);
     return;
@@ -329,7 +346,13 @@ cardsEl.addEventListener("submit", async (event) => {
     }
 
     await updateSelectedCard(card.id, "add_tag", tag);
-    showLibraryStatus(`Added tag ${tag}.`);
+    const currentForm = [...cardsEl.querySelectorAll('form[data-action="add-tag"]')]
+      .find((candidate) => candidate.dataset.id === card.id);
+    const currentInput = currentForm?.elements.namedItem("tag");
+    if (currentInput) {
+      currentInput.value = "";
+      if (openCardTagEditors.has(card.id)) currentInput.focus();
+    }
   } catch (error) {
     showLibraryStatus(error instanceof Error ? error.message : "Could not save changes", true);
   }
@@ -608,6 +631,9 @@ function focusCard(id) {
 }
 
 function render() {
+  const focusedTagForm = document.activeElement?.closest?.('form[data-action="add-tag"]');
+  const focusedTagId = focusedTagForm?.dataset.id;
+  const focusedTagValue = focusedTagForm?.elements.namedItem("tag")?.value;
   renderTagFilter();
   const query = searchEl.value.trim();
   const selectedTag = normalizeTagKey(tagFilterEl.value);
@@ -631,6 +657,15 @@ function render() {
   }
 
   cardsEl.innerHTML = visibleCards.map(renderCard).join("");
+  if (focusedTagId) {
+    const form = [...cardsEl.querySelectorAll('form[data-action="add-tag"]')]
+      .find((candidate) => candidate.dataset.id === focusedTagId && !candidate.hidden);
+    const input = form?.elements.namedItem("tag");
+    if (input) {
+      input.value = focusedTagValue || "";
+      input.focus();
+    }
+  }
   if (bulkBusy) setBulkControlsDisabled(true);
 }
 
@@ -726,6 +761,8 @@ function renderCard(card) {
       </a>`
     : sourceLabel ? `<span class="source-label">${escapeHtml(sourceLabel)}</span>` : "";
   const tags = renderTags(card, cardId);
+  const tagFormId = disclosureId(card.id, "add-tag");
+  const tagEditorOpen = openCardTagEditors.has(card.id);
   const note = card.note
     ? `<p class="card-note">${escapeHtml(card.note)}</p>`
     : "";
@@ -759,16 +796,18 @@ function renderCard(card) {
       ${FEATURES.aiEnrichment && ai.error ? `<p class="error-text">${escapeHtml(ai.error)}</p>` : ""}
       <div class="card-disclosures">
         <div class="card-disclosure-controls">
-          ${enrichmentPanel ? renderDisclosureControl("more", "More", morePanelId) : ""}
-          ${relatedPhrases ? renderDisclosureControl("related", `Related (${relatedPhrases.count})`, relatedPanelId) : ""}
           ${context ? renderDisclosureControl("context", "Context", contextPanelId) : ""}
           ${renderDisclosureControl("edit", "Edit", editPanelId)}
+          <button class="add-tag-toggle" data-action="toggle-tag-editor" data-id="${cardId}" type="button" aria-expanded="${tagEditorOpen}" aria-controls="${tagFormId}"><span class="disclosure-symbol" aria-hidden="true">${tagEditorOpen ? "−" : "+"}</span>Add tag</button>
+          ${relatedPhrases ? renderDisclosureControl("related", `Related (${relatedPhrases.count})`, relatedPanelId) : ""}
+          ${enrichmentPanel ? renderDisclosureControl("more", "More", morePanelId) : ""}
         </div>
         <div class="card-disclosure-panels">
-          ${enrichmentPanel}
-          ${relatedPhrases ? relatedPhrases.panel : ""}
           ${context}
           ${editor}
+          ${renderCardTagEditor(card, cardId, tagFormId)}
+          ${relatedPhrases ? relatedPhrases.panel : ""}
+          ${enrichmentPanel}
         </div>
       </div>
       <footer class="card-footer">
@@ -796,17 +835,15 @@ function renderTags(card, cardId) {
     >${escapeHtml(tag)} <span aria-hidden="true">x</span></button>
   `).join("");
 
+  return tagButtons ? `<div class="tag-controls" role="group" aria-label="Tags">${tagButtons}</div>` : "";
+}
+
+function renderCardTagEditor(card, cardId, formId) {
   return `
-    <div class="tag-editor">
-      ${tagButtons ? `<div class="tag-list" aria-label="Tags">${tagButtons}</div>` : ""}
-      <details class="add-tag-disclosure">
-        <summary>Add tag</summary>
-        <form data-action="add-tag" data-id="${cardId}">
-          <input name="tag" type="text" maxlength="40" placeholder="Tag name" aria-label="Add a tag to ${escapeAttribute(card.selectedText)}" list="tag-suggestions" autocomplete="off">
-          <button type="submit" data-tooltip="Add tag" aria-label="Add tag">+</button>
-        </form>
-      </details>
-    </div>
+    <form id="${formId}" class="card-tag-editor card-disclosure-panel" data-action="add-tag" data-id="${cardId}" ${openCardTagEditors.has(card.id) ? "" : "hidden"}>
+      <input name="tag" type="text" maxlength="40" placeholder="Tag name" aria-label="Add a tag to ${escapeAttribute(card.selectedText)}" list="tag-suggestions" autocomplete="off">
+      <button type="submit" data-tooltip="Add tag" aria-label="Add tag">+</button>
+    </form>
   `;
 }
 
@@ -1145,9 +1182,9 @@ async function copySelectedPhrases() {
 
   try {
     await writeClipboardText(text);
-    showLibraryStatus(`Copied ${cardCount(selectedCards.length)}.`);
+    showLibraryStatus(`Copied ${selectedCards.length} ${selectedCards.length === 1 ? "snippet" : "snippets"}.`);
   } catch {
-    showLibraryStatus("Could not copy the selected cards.", true);
+    showLibraryStatus("Could not copy the selected snippets.", true);
   }
 }
 
