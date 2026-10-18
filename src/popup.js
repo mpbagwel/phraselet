@@ -46,6 +46,7 @@ const backupNowEl = document.querySelector("#backup-now");
 const backupLaterEl = document.querySelector("#backup-later");
 const libraryStatusEl = document.querySelector("#library-status");
 const toggleSelectionEl = document.querySelector("#toggle-selection");
+const toggleCardsEl = document.querySelector("#toggle-cards");
 const bulkActionsEl = document.querySelector("#bulk-actions");
 const bulkSelectAllEl = document.querySelector("#bulk-select-all");
 const bulkSelectAllLabelEl = document.querySelector("#bulk-select-all-label");
@@ -75,6 +76,8 @@ let cards = [];
 let backupReminder = {};
 let pendingTagSelection = null;
 let selectionMode = false;
+let cardsCollapsed = false;
+const cardUiState = new Map();
 const selectedCardIds = new Set();
 const openCardTagEditors = new Set();
 const bulkTagDraft = new Map();
@@ -112,6 +115,9 @@ async function init() {
       });
       [...openCardTagEditors].forEach((id) => {
         if (!currentIds.has(id)) openCardTagEditors.delete(id);
+      });
+      [...cardUiState.keys()].forEach((id) => {
+        if (!currentIds.has(id)) cardUiState.delete(id);
       });
     }
 
@@ -166,6 +172,10 @@ importCardsEl.addEventListener("click", () => {
 
 importFileEl.addEventListener("change", importCards);
 toggleSelectionEl.addEventListener("click", toggleSelectionMode);
+toggleCardsEl.addEventListener("click", () => {
+  cardsCollapsed = !cardsCollapsed;
+  renderCardsView();
+});
 bulkSelectAllEl.addEventListener("change", toggleAllMatchingCards);
 clearSelectionEl.addEventListener("click", clearBulkSelection);
 bulkTagsEl.addEventListener("click", () => toggleBulkPanel(bulkTagsPanelEl, bulkTagsEl));
@@ -630,7 +640,50 @@ function focusCard(id) {
   setTimeout(() => cardEl.classList.remove("is-focused"), 1600);
 }
 
+function rememberCardUiState() {
+  const currentIds = new Set(cards.map((card) => card.id));
+  cardsEl.querySelectorAll("[data-card-id]").forEach((cardEl) => {
+    if (!currentIds.has(cardEl.dataset.cardId)) return;
+    const edits = {};
+    cardEl.querySelectorAll('form[data-action="edit-card"] input, form[data-action="edit-card"] textarea').forEach((field) => {
+      if (field.value !== field.defaultValue) edits[field.name] = field.value;
+    });
+    const tagValue = cardEl.querySelector('form[data-action="add-tag"] input')?.value || "";
+    const panels = [...cardEl.querySelectorAll("[data-panel-id]")]
+      .filter((panel) => !panel.hidden).map((panel) => panel.dataset.panelId);
+    const id = cardEl.dataset.cardId;
+    if (Object.keys(edits).length || tagValue || panels.length) cardUiState.set(id, { edits, tagValue, panels });
+    else cardUiState.delete(id);
+  });
+}
+
+function restoreCardUiState() {
+  cardsEl.querySelectorAll("[data-card-id]").forEach((cardEl) => {
+    const state = cardUiState.get(cardEl.dataset.cardId);
+    if (!state) return;
+    const form = cardEl.querySelector('form[data-action="edit-card"]');
+    Object.entries(state.edits).forEach(([name, value]) => {
+      const field = form?.elements.namedItem(name);
+      if (field) field.value = value;
+    });
+    const tagInput = cardEl.querySelector('form[data-action="add-tag"] input');
+    if (tagInput) tagInput.value = state.tagValue;
+    cardEl.querySelectorAll('button[data-action="toggle-panel"]').forEach((button) => {
+      if (state.panels.includes(button.dataset.panel)) toggleCardPanel(button);
+    });
+  });
+}
+
+function renderCardsView() {
+  cardsEl.classList.toggle("is-collapsed", cardsCollapsed);
+  toggleCardsEl.textContent = cardsCollapsed ? "Expand all" : "Collapse all";
+  toggleCardsEl.setAttribute("aria-label", cardsCollapsed ? "Expand all cards" : "Collapse all cards");
+  toggleCardsEl.setAttribute("aria-expanded", String(!cardsCollapsed));
+  toggleCardsEl.disabled = cards.length === 0;
+}
+
 function render() {
+  rememberCardUiState();
   const focusedTagForm = document.activeElement?.closest?.('form[data-action="add-tag"]');
   const focusedTagId = focusedTagForm?.dataset.id;
   const focusedTagValue = focusedTagForm?.elements.namedItem("tag")?.value;
@@ -650,6 +703,7 @@ function render() {
   }
   renderBackupReminder();
   renderBulkActions(visibleCards);
+  renderCardsView();
 
   if (!visibleCards.length) {
     cardsEl.innerHTML = emptyState(query, selectedTag, selectedStatus);
@@ -657,6 +711,7 @@ function render() {
   }
 
   cardsEl.innerHTML = visibleCards.map(renderCard).join("");
+  restoreCardUiState();
   if (focusedTagId) {
     const form = [...cardsEl.querySelectorAll('form[data-action="add-tag"]')]
       .find((candidate) => candidate.dataset.id === focusedTagId && !candidate.hidden);
@@ -764,7 +819,7 @@ function renderCard(card) {
   const tagFormId = disclosureId(card.id, "add-tag");
   const tagEditorOpen = openCardTagEditors.has(card.id);
   const note = card.note
-    ? `<p class="card-note">${escapeHtml(card.note)}</p>`
+    ? `<p class="card-note" data-card-details>${escapeHtml(card.note)}</p>`
     : "";
   const relatedPhrases = renderRelatedPhrases(card, relatedPanelId);
   const editor = renderCardEditor(card, cardId, editPanelId);
@@ -790,11 +845,11 @@ function renderCard(card) {
         ${statusBadge}
       </div>
       ${note}
-      ${FEATURES.aiEnrichment && ai.summary ? `<p class="card-summary">${escapeHtml(ai.summary)}</p>` : ""}
-      ${FEATURES.aiEnrichment && ai.contextMeaning ? `<p class="context-meaning">${escapeHtml(ai.contextMeaning)}</p>` : ""}
+      ${FEATURES.aiEnrichment && ai.summary ? `<p class="card-summary" data-card-details>${escapeHtml(ai.summary)}</p>` : ""}
+      ${FEATURES.aiEnrichment && ai.contextMeaning ? `<p class="context-meaning" data-card-details>${escapeHtml(ai.contextMeaning)}</p>` : ""}
       ${tags}
-      ${FEATURES.aiEnrichment && ai.error ? `<p class="error-text">${escapeHtml(ai.error)}</p>` : ""}
-      <div class="card-disclosures">
+      ${FEATURES.aiEnrichment && ai.error ? `<p class="error-text" data-card-details>${escapeHtml(ai.error)}</p>` : ""}
+      <div class="card-disclosures" data-card-details>
         <div class="card-disclosure-controls">
           ${context ? renderDisclosureControl("context", "Context", contextPanelId) : ""}
           ${renderDisclosureControl("edit", "Edit", editPanelId)}
@@ -810,7 +865,7 @@ function renderCard(card) {
           ${enrichmentPanel}
         </div>
       </div>
-      <footer class="card-footer">
+      <footer class="card-footer" data-card-details>
         <div>${source}</div>
         <div class="card-actions">
           ${FEATURES.aiEnrichment ? `<button data-action="enrich" data-id="${cardId}" type="button">Explain</button>` : ""}

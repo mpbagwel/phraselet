@@ -375,14 +375,23 @@ kbd {
 }
 
 .library-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 0 16px 10px;
 }
 
+.library-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
 .filter-row {
+  flex: 0 1 auto;
+  max-width: 100%;
   display: grid;
   grid-template-columns: minmax(0, max-content) 104px;
   justify-content: start;
@@ -437,7 +446,7 @@ kbd {
   display: block;
   visibility: hidden;
   overflow: hidden;
-  padding: 0 30px 0 8px;
+  padding: 0 30px 0 4px;
   white-space: nowrap;
 }
 
@@ -445,7 +454,7 @@ kbd {
   position: absolute;
   inset: 0;
   width: 100%;
-  padding-left: 8px;
+  padding-left: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -509,12 +518,14 @@ kbd {
   font-size: 11px;
 }
 
-.selection-toggle {
+.selection-toggle, .card-view-toggle {
   min-width: 52px;
   min-height: 38px;
   border-color: var(--line);
   background: rgb(255 255 255 / 78%);
 }
+
+.card-view-toggle { min-width: 88px; white-space: nowrap; }
 
 .selection-toggle[aria-pressed="true"] {
   border-color: #b9cbd3;
@@ -735,6 +746,9 @@ kbd {
   padding: 14px;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
+
+.cards.is-collapsed [data-card-details] { display: none; }
+.cards.is-collapsed .card-header h2 { -webkit-line-clamp: 2; }
 
 .phrase-card::before {
   position: absolute;
