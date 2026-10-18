@@ -43,7 +43,7 @@ async function saveOptions() {
         afterSave: normalizeAfterSave(afterSaveEl.value)
       }
     });
-    showStatus("Option saved");
+    showStatus("Preferences saved");
   } catch {
     showStatus("Could not save preferences. Try again.", true);
   } finally {

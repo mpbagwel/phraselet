@@ -10,6 +10,7 @@ import {
 } from "./backup.js";
 import { rankCards } from "./search.js";
 import { MAX_IMPORT_FILE_BYTES } from "./library.js";
+import { initTooltips } from "./tooltips.js";
 
 const CARDS_KEY = "phraselet.cards";
 const BACKUP_REMINDER_KEY = "phraselet.backupReminder";
@@ -25,6 +26,7 @@ const cardsEl = document.querySelector("#cards");
 const countEl = document.querySelector("#card-count");
 const searchEl = document.querySelector("#search");
 const tagFilterEl = document.querySelector("#tag-filter");
+const tagFilterLabelEl = document.querySelector("#tag-filter-label");
 const viewFilterEl = document.querySelector("#view-filter");
 const tagSuggestionsEl = document.querySelector("#tag-suggestions");
 const manageTagEl = document.querySelector("#manage-tag");
@@ -50,10 +52,20 @@ const bulkSelectAllLabelEl = document.querySelector("#bulk-select-all-label");
 const bulkSelectionCountEl = document.querySelector("#bulk-selection-count");
 const clearSelectionEl = document.querySelector("#clear-selection");
 const bulkTagNameEl = document.querySelector("#bulk-tag-name");
-const bulkAddTagEl = document.querySelector("#bulk-add-tag");
-const bulkRemoveTagEl = document.querySelector("#bulk-remove-tag");
+const bulkTagsEl = document.querySelector("#bulk-tags");
+const bulkMoveEl = document.querySelector("#bulk-move");
+const bulkMoreEl = document.querySelector("#bulk-more");
+const bulkTagsPanelEl = document.querySelector("#bulk-tags-panel");
+const bulkMovePanelEl = document.querySelector("#bulk-move-panel");
+const bulkMorePanelEl = document.querySelector("#bulk-more-panel");
+const bulkExportPanelEl = document.querySelector("#bulk-export-panel");
+const bulkTagListEl = document.querySelector("#bulk-tag-list");
+const bulkTagStatusEl = document.querySelector("#bulk-tag-status");
+const bulkNewTagFormEl = document.querySelector("#bulk-new-tag-form");
+const bulkApplyTagsEl = document.querySelector("#bulk-apply-tags");
+const bulkCancelTagsEl = document.querySelector("#bulk-cancel-tags");
+const bulkExportBackEl = document.querySelector("#bulk-export-back");
 const bulkCopyEl = document.querySelector("#bulk-copy");
-const bulkExportFormatEl = document.querySelector("#bulk-export-format");
 const bulkExportEl = document.querySelector("#bulk-export");
 const bulkArchiveEl = document.querySelector("#bulk-archive");
 const bulkRestoreEl = document.querySelector("#bulk-restore");
@@ -64,10 +76,16 @@ let backupReminder = {};
 let pendingTagSelection = null;
 let selectionMode = false;
 const selectedCardIds = new Set();
+const bulkTagDraft = new Map();
+let bulkPanel = null;
+let bulkPanelOrigin = null;
+let bulkSelectionKey = "";
+let bulkBusy = false;
 
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
+  initTooltips();
   [cards, backupReminder] = await Promise.all([
     getCards(),
     getBackupReminder()
@@ -112,19 +130,19 @@ saveSelectionEl.addEventListener("click", async () => {
 
     setCaptureButtonLabel(result?.ok
       ? result.truncated ? "Shortened" : result.duplicate ? "Already saved" : "Saved"
-      : "Save");
+      : "Save selection");
     if (!result?.ok) {
       showLibraryStatus(result?.error || "Could not save the selection.", true);
     } else if (result.truncated) {
       showLibraryStatus(`Saved a shortened selection (${MAX_PHRASE_LENGTH}-character limit).`);
     }
   } catch {
-    setCaptureButtonLabel("Save");
+    setCaptureButtonLabel("Save selection");
     showLibraryStatus("Could not reach Phraselet. Reload the extension and try again.", true);
   } finally {
     saveSelectionEl.disabled = false;
     setTimeout(() => {
-      setCaptureButtonLabel("Save");
+      setCaptureButtonLabel("Save selection");
     }, 1200);
   }
 });
@@ -146,10 +164,56 @@ importFileEl.addEventListener("change", importCards);
 toggleSelectionEl.addEventListener("click", toggleSelectionMode);
 bulkSelectAllEl.addEventListener("change", toggleAllMatchingCards);
 clearSelectionEl.addEventListener("click", clearBulkSelection);
-bulkAddTagEl.addEventListener("click", () => applyBulkAction("add_tag"));
-bulkRemoveTagEl.addEventListener("click", () => applyBulkAction("remove_tag"));
-bulkCopyEl.addEventListener("click", copySelectedPhrases);
-bulkExportEl.addEventListener("click", exportSelectedPhrases);
+bulkTagsEl.addEventListener("click", () => toggleBulkPanel(bulkTagsPanelEl, bulkTagsEl));
+bulkMoreEl.addEventListener("click", () => toggleBulkPanel(bulkMorePanelEl, bulkMoreEl));
+bulkMoveEl.addEventListener("click", () => {
+  const selected = getSelectedCards();
+  const hasCurrent = selected.some((card) => cardStatus(card) === "current");
+  const hasArchived = selected.some((card) => cardStatus(card) === "archived");
+  if (hasCurrent && hasArchived) toggleBulkPanel(bulkMovePanelEl, bulkMoveEl);
+  else if (selected.length) applyBulkAction(hasArchived ? "restore" : "archive");
+});
+bulkCopyEl.addEventListener("click", () => {
+  closeBulkPanels(true);
+  copySelectedPhrases();
+});
+bulkExportEl.addEventListener("click", () => openBulkPanel(bulkExportPanelEl, bulkMoreEl));
+bulkExportBackEl.addEventListener("click", () => openBulkPanel(bulkMorePanelEl, bulkMoreEl));
+bulkExportPanelEl.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-bulk-export-format]");
+  if (button) {
+    closeBulkPanels(true);
+    exportSelectedPhrases(button.dataset.bulkExportFormat);
+  }
+});
+bulkNewTagFormEl.addEventListener("submit", addBulkTagDraft);
+bulkApplyTagsEl.addEventListener("click", applyBulkTags);
+bulkCancelTagsEl.addEventListener("click", () => closeBulkPanels(true));
+bulkTagListEl.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("input[data-bulk-tag]");
+  if (!checkbox || bulkBusy) return;
+  const row = getBulkTagRows().find((item) => item.key === checkbox.dataset.bulkTag);
+  if (!row) return;
+  if ((row.count === getSelectedCards().length && checkbox.checked) || (!row.count && !checkbox.checked)) {
+    bulkTagDraft.delete(row.key);
+  } else {
+    bulkTagDraft.set(row.key, { tag: row.tag, checked: checkbox.checked });
+  }
+  renderBulkTagList();
+});
+document.addEventListener("pointerdown", (event) => {
+  if (bulkPanel && !bulkActionsEl.contains(event.target)) closeBulkPanels();
+});
+bulkActionsEl.addEventListener("focusout", (event) => {
+  if (bulkPanel && event.relatedTarget && !bulkActionsEl.contains(event.relatedTarget)) closeBulkPanels();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && bulkPanel) {
+    event.preventDefault();
+    closeBulkPanels(true);
+  }
+});
+document.defaultView?.addEventListener("resize", () => closeBulkPanels());
 bulkArchiveEl.addEventListener("click", () => applyBulkAction("archive"));
 bulkRestoreEl.addEventListener("click", () => applyBulkAction("restore"));
 bulkDeleteEl.addEventListener("click", deleteSelectedCards);
@@ -322,8 +386,8 @@ function toggleSelectionMode() {
   selectionMode = !selectionMode;
   if (!selectionMode) {
     selectedCardIds.clear();
-    bulkTagNameEl.value = "";
   }
+  closeBulkPanels();
   closeTagManager();
   render();
 }
@@ -345,49 +409,151 @@ function clearBulkSelection() {
 }
 
 async function applyBulkAction(operation) {
-  const tag = normalizeTag(bulkTagNameEl.value);
-  if (["add_tag", "remove_tag"].includes(operation) && !tag) {
-    showLibraryStatus("Enter a tag name.", true);
-    bulkTagNameEl.focus();
-    return;
-  }
-
+  if (bulkBusy || !selectedCardIds.size) return;
+  const cardIds = [...selectedCardIds];
+  closeBulkPanels();
   setBulkControlsDisabled(true);
   try {
-    const result = await chrome.runtime.sendMessage({
-      type: "PHRASELET_BULK_UPDATE_CARDS",
-      operation,
-      cardIds: [...selectedCardIds],
-      tag
+    const result = await mutateLibrary({
+      type: "PHRASELET_BULK_UPDATE_CARDS", operation, cardIds
     });
-
-    if (!result?.ok) {
-      showLibraryStatus(result?.error || "Could not update the selected cards.", true);
-      return;
-    }
-
-    const changedCards = cardCount(result.changed);
-    const statusMessage = {
-      add_tag: `Added ${tag} to ${changedCards}.`,
-      remove_tag: `Removed ${tag} from ${changedCards}.`,
-      archive: `Archived ${changedCards}.`,
-      restore: `Restored ${changedCards}.`
-    }[operation];
-    showLibraryStatus(statusMessage);
-
-    if (["add_tag", "remove_tag"].includes(operation)) {
-      bulkTagNameEl.value = "";
-    }
-  } catch {
-    showLibraryStatus("Could not update the selected cards.", true);
+    cards = await getCards();
+    showLibraryStatus(`${operation === "archive" ? "Archived" : "Restored"} ${cardCount(result.changed)}.`);
+  } catch (error) {
+    showLibraryStatus(error.message || "Could not update the selected cards.", true);
   } finally {
     setBulkControlsDisabled(false);
     render();
+    bulkMoveEl.focus();
+  }
+}
+
+function toggleBulkPanel(panel, origin) {
+  if (bulkPanel === panel) closeBulkPanels(true);
+  else openBulkPanel(panel, origin);
+}
+
+function openBulkPanel(panel, origin) {
+  if (bulkBusy || !selectedCardIds.size) return;
+  closeBulkPanels();
+  closeExportMenu();
+  bulkPanel = panel;
+  bulkPanelOrigin = origin;
+  panel.hidden = false;
+  origin.setAttribute("aria-controls", panel.id);
+  origin.setAttribute("aria-expanded", "true");
+  if (panel === bulkTagsPanelEl) renderBulkTagList();
+  positionBulkPanel();
+  (panel.querySelector("input, button") || origin).focus();
+}
+
+function closeBulkPanels(restoreFocus = false) {
+  const origin = bulkPanelOrigin;
+  [bulkTagsPanelEl, bulkMovePanelEl, bulkMorePanelEl, bulkExportPanelEl].forEach((panel) => {
+    panel.hidden = true;
+  });
+  [bulkTagsEl, bulkMoreEl].forEach((button) => button.setAttribute("aria-expanded", "false"));
+  if (bulkMoveEl.hasAttribute("aria-controls")) bulkMoveEl.setAttribute("aria-expanded", "false");
+  bulkMoreEl.setAttribute("aria-controls", "bulk-more-panel");
+  bulkPanel = null;
+  bulkPanelOrigin = null;
+  bulkTagDraft.clear();
+  bulkTagNameEl.value = "";
+  bulkTagStatusEl.textContent = "";
+  if (restoreFocus) origin?.focus();
+}
+
+function positionBulkPanel() {
+  if (!bulkPanel) return;
+  const rect = bulkActionsEl.getBoundingClientRect();
+  const below = window.innerHeight - rect.bottom - 12;
+  const above = rect.top - 12;
+  const opensAbove = below < 260 && above > below;
+  bulkPanel.classList.toggle("opens-above", opensAbove);
+  bulkPanel.style.maxHeight = `${Math.max(100, opensAbove ? above : below)}px`;
+}
+
+function getBulkTagRows() {
+  const rows = new Map();
+  getSelectedCards().forEach((card) => normalizeTags(card.tags).forEach((tag) => {
+    const key = normalizeTagKey(tag);
+    const row = rows.get(key) || { key, tag, count: 0 };
+    row.count += 1;
+    rows.set(key, row);
+  }));
+  bulkTagDraft.forEach(({ tag }, key) => {
+    if (!rows.has(key)) rows.set(key, { key, tag, count: 0 });
+  });
+  return [...rows.values()].sort((left, right) => left.tag.localeCompare(right.tag));
+}
+
+function renderBulkTagList() {
+  const focusedKey = document.activeElement?.dataset?.bulkTag;
+  const selectedCount = getSelectedCards().length;
+  const rows = getBulkTagRows();
+  const rowsByKey = new Map(rows.map((row) => [row.key, row]));
+  bulkTagListEl.innerHTML = rows.length ? rows.map(({ key, tag, count }) => {
+    const draft = bulkTagDraft.get(key);
+    const mixed = !draft && count > 0 && count < selectedCount;
+    const checked = draft ? draft.checked : count === selectedCount;
+    return `<label class="bulk-tag-option">
+      <input type="checkbox" data-bulk-tag="${escapeAttribute(key)}" ${checked ? "checked" : ""} ${bulkBusy ? "disabled" : ""}>
+      <span>${escapeHtml(tag)}</span>${mixed ? "<small>Some cards</small>" : ""}
+    </label>`;
+  }).join("") : '<p class="bulk-tag-empty">No tags on these cards yet.</p>';
+  bulkTagListEl.querySelectorAll("input[data-bulk-tag]").forEach((checkbox) => {
+    const row = rowsByKey.get(checkbox.dataset.bulkTag);
+    checkbox.indeterminate = !bulkTagDraft.has(row.key) && row.count > 0 && row.count < selectedCount;
+    if (row.key === focusedKey) checkbox.focus();
+  });
+  bulkApplyTagsEl.disabled = bulkBusy || !bulkTagDraft.size;
+  positionBulkPanel();
+}
+
+function addBulkTagDraft(event) {
+  event.preventDefault();
+  if (bulkBusy) return;
+  const tag = normalizeTag(bulkTagNameEl.value);
+  if (!tag) return;
+  const key = normalizeTagKey(tag);
+  const canonical = cards.flatMap((card) => normalizeTags(card.tags)).find((candidate) => normalizeTagKey(candidate) === key) || tag;
+  bulkTagDraft.set(key, { tag: canonical, checked: true });
+  bulkTagNameEl.value = "";
+  bulkTagStatusEl.textContent = "";
+  renderBulkTagList();
+  bulkTagNameEl.focus();
+}
+
+async function applyBulkTags() {
+  if (bulkBusy || !selectedCardIds.size || !bulkTagDraft.size) return;
+  const additions = [...bulkTagDraft.values()].filter((item) => item.checked).map((item) => item.tag);
+  const removals = [...bulkTagDraft.values()].filter((item) => !item.checked).map((item) => item.tag);
+  const cardIds = [...selectedCardIds];
+  setBulkControlsDisabled(true);
+  bulkTagStatusEl.textContent = "";
+  try {
+    const result = await mutateLibrary({
+      type: "PHRASELET_BULK_UPDATE_CARDS", operation: "update_tags", cardIds,
+      addTags: additions, removeTags: removals
+    });
+    cards = await getCards();
+    closeBulkPanels();
+    showLibraryStatus(`Updated tags on ${cardCount(result.changed)}.`);
+  } catch (error) {
+    bulkTagStatusEl.textContent = error.message || "Could not update tags. Try again.";
+    if (bulkPanel !== bulkTagsPanelEl) showLibraryStatus(bulkTagStatusEl.textContent, true);
+  } finally {
+    setBulkControlsDisabled(false);
+    render();
+    if (bulkPanel === bulkTagsPanelEl) bulkApplyTagsEl.focus();
+    else bulkTagsEl.focus();
   }
 }
 
 async function deleteSelectedCards() {
   const count = selectedCardIds.size;
+  if (bulkBusy) return;
+  closeBulkPanels(true);
   if (!count || !window.confirm(`Delete ${cardCount(count)}? This cannot be undone.`)) {
     return;
   }
@@ -416,21 +582,10 @@ async function deleteSelectedCards() {
 }
 
 function setBulkControlsDisabled(disabled) {
-  [
-    bulkSelectAllEl,
-    clearSelectionEl,
-    bulkTagNameEl,
-    bulkAddTagEl,
-    bulkRemoveTagEl,
-    bulkCopyEl,
-    bulkExportFormatEl,
-    bulkExportEl,
-    bulkArchiveEl,
-    bulkRestoreEl,
-    bulkDeleteEl
-  ].forEach((control) => {
-    control.disabled = disabled;
-  });
+  bulkBusy = disabled;
+  bulkActionsEl.querySelectorAll("button, input").forEach((control) => { control.disabled = disabled; });
+  cardsEl.querySelectorAll('[data-action="select-card"]').forEach((control) => { control.disabled = disabled; });
+  toggleSelectionEl.disabled = disabled;
 }
 
 function focusCard(id) {
@@ -463,7 +618,7 @@ function render() {
     ? `${visibleCards.length} of ${cards.length} cards`
     : cardCount(visibleCards.length);
   exportCardsEl.disabled = cards.length === 0;
-  toggleSelectionEl.disabled = cards.length === 0 && !selectionMode;
+  toggleSelectionEl.disabled = bulkBusy || (cards.length === 0 && !selectionMode);
   if (!cards.length) {
     closeExportMenu();
   }
@@ -476,6 +631,7 @@ function render() {
   }
 
   cardsEl.innerHTML = visibleCards.map(renderCard).join("");
+  if (bulkBusy) setBulkControlsDisabled(true);
 }
 
 function getVisibleCards(
@@ -496,9 +652,10 @@ function renderBulkActions(visibleCards) {
   toggleSelectionEl.textContent = selectionMode ? "Done" : "Select";
   toggleSelectionEl.setAttribute("aria-pressed", String(selectionMode));
 
-  if (!selectionMode) {
-    return;
-  }
+  const selectionKey = JSON.stringify([...selectedCardIds].sort());
+  if (!selectionMode || bulkSelectionKey !== selectionKey) closeBulkPanels();
+  bulkSelectionKey = selectionKey;
+  if (!selectionMode) return;
 
   const visibleIds = visibleCards.map((card) => card.id);
   const visibleSelected = visibleIds.filter((id) => selectedCardIds.has(id)).length;
@@ -512,19 +669,26 @@ function renderBulkActions(visibleCards) {
   bulkSelectAllEl.indeterminate = visibleSelected > 0 && !allVisibleSelected;
   bulkSelectAllEl.disabled = visibleIds.length === 0;
   bulkSelectAllLabelEl.textContent = visibleIds.length
-    ? `Select all ${visibleIds.length} matching`
+    ? "All matching"
     : "No matching cards";
   bulkSelectionCountEl.textContent = `${selectedCardIds.size} selected`;
   clearSelectionEl.disabled = !hasSelection;
-  bulkTagNameEl.disabled = !hasSelection;
-  bulkAddTagEl.disabled = !hasSelection;
-  bulkRemoveTagEl.disabled = !hasSelection;
-  bulkCopyEl.disabled = !hasSelection;
-  bulkExportFormatEl.disabled = !hasSelection;
-  bulkExportEl.disabled = !hasSelection;
+  bulkTagsEl.disabled = !hasSelection;
+  bulkMoveEl.disabled = !hasSelection;
+  bulkMoreEl.disabled = !hasSelection;
+  bulkMoveEl.textContent = hasCurrentSelection && hasArchivedSelection ? "Move…" : hasArchivedSelection ? "Restore" : "Archive";
+  if (hasCurrentSelection && hasArchivedSelection) {
+    bulkMoveEl.setAttribute("aria-controls", "bulk-move-panel");
+    bulkMoveEl.setAttribute("aria-expanded", String(bulkPanel === bulkMovePanelEl));
+  } else {
+    bulkMoveEl.removeAttribute("aria-controls");
+    bulkMoveEl.removeAttribute("aria-expanded");
+  }
   bulkArchiveEl.disabled = !hasCurrentSelection;
   bulkRestoreEl.disabled = !hasArchivedSelection;
-  bulkDeleteEl.disabled = !hasSelection;
+  if (!hasSelection) closeBulkPanels();
+  if (bulkPanel === bulkTagsPanelEl) renderBulkTagList();
+  if (bulkBusy) setBulkControlsDisabled(true);
 }
 
 function renderCard(card) {
@@ -556,7 +720,7 @@ function renderCard(card) {
   const sourceUrl = safeSourceUrl(card.sourceUrl);
   const sourceLabel = cleanText(card.sourceTitle || hostnameFromUrl(sourceUrl));
   const source = sourceUrl
-    ? `<a class="source-link" href="${escapeAttribute(sourceUrl)}" target="_blank" rel="noreferrer" title="Open source: ${escapeAttribute(sourceLabel)}">
+    ? `<a class="source-link" href="${escapeAttribute(sourceUrl)}" target="_blank" rel="noreferrer">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 13v6H5V6h6"/></svg>
         <span>${escapeHtml(sourceLabel)}</span>
       </a>`
@@ -628,7 +792,6 @@ function renderTags(card, cardId) {
       data-id="${cardId}"
       data-tag="${escapeAttribute(tag)}"
       type="button"
-      title="Remove tag"
       aria-label="Remove tag ${escapeAttribute(tag)}"
     >${escapeHtml(tag)} <span aria-hidden="true">x</span></button>
   `).join("");
@@ -640,7 +803,7 @@ function renderTags(card, cardId) {
         <summary>Add tag</summary>
         <form data-action="add-tag" data-id="${cardId}">
           <input name="tag" type="text" maxlength="40" placeholder="Tag name" aria-label="Add a tag to ${escapeAttribute(card.selectedText)}" list="tag-suggestions" autocomplete="off">
-          <button type="submit" title="Add tag" aria-label="Add tag">+</button>
+          <button type="submit" data-tooltip="Add tag" aria-label="Add tag">+</button>
         </form>
       </details>
     </div>
@@ -711,8 +874,13 @@ function renderCardEditor(card, cardId, panelId) {
 }
 
 function renderDisclosureControl(panel, label, panelId) {
+  const help = {
+    more: "Show examples and related terms",
+    related: "Show cards with shared tags",
+    context: "Show the surrounding text saved from the source"
+  };
   return `
-    <button data-action="toggle-panel" data-panel="${panel}" type="button" aria-expanded="false" aria-controls="${panelId}">
+    <button data-action="toggle-panel" data-panel="${panel}" type="button" aria-expanded="false" aria-controls="${panelId}" ${help[panel] ? `data-tooltip="${help[panel]}"` : ""}>
       <span class="disclosure-symbol" aria-hidden="true">+</span>${label}
     </button>
   `;
@@ -735,6 +903,9 @@ function toggleCardPanel(button) {
   const isOpen = panelEl.hidden;
   panelEl.hidden = !isOpen;
   button.setAttribute("aria-expanded", String(isOpen));
+  if (button.dataset.tooltip) {
+    button.dataset.tooltip = button.dataset.tooltip.replace(/^(Show|Hide) /, isOpen ? "Hide " : "Show ");
+  }
   button.querySelector(".disclosure-symbol").textContent = isOpen ? "−" : "+";
 }
 
@@ -745,7 +916,7 @@ function emptyState(query, selectedTag, selectedStatus) {
     ? "Save what made you pause"
     : filtered ? "No matches" : "No current cards";
   const copy = !hasCards
-    ? "Highlight text on a webpage, use your Phraselet shortcut, or right-click and choose “Save to Phraselet”."
+    ? "Highlight text on a webpage, then use your Phraselet shortcut or right-click and choose “Save to Phraselet”."
     : filtered ? "Try a broader search or clear a filter." : "Restore an archived card or save something new.";
   return `
     <section class="empty-state">
@@ -774,7 +945,7 @@ function renderTagFilter() {
 
   const selectedTag = tags.find((tag) => normalizeTagKey(tag) === previousValue);
   tagFilterEl.value = selectedTag || "";
-  tagFilterEl.title = selectedTag || "All tags";
+  tagFilterLabelEl.textContent = selectedTag || "All tags";
   tagFilterEl.disabled = tags.length === 0;
   manageTagEl.disabled = !selectedTag;
   manageTagEl.hidden = !selectedTag;
@@ -917,6 +1088,7 @@ async function deleteCard(id) {
 }
 
 function toggleExportMenu() {
+  closeBulkPanels();
   const shouldOpen = exportMenuEl.hidden;
   exportMenuEl.hidden = !shouldOpen;
   exportCardsEl.setAttribute("aria-expanded", String(shouldOpen));
@@ -955,10 +1127,10 @@ async function exportFromMenu(event) {
   });
 }
 
-async function exportSelectedPhrases() {
+async function exportSelectedPhrases(format) {
   const selectedCards = getSelectedCards();
-  await downloadCards(selectedCards, bulkExportFormatEl.value, {
-    completeBackup: bulkExportFormatEl.value === "json" && selectedCards.length === cards.length,
+  await downloadCards(selectedCards, format, {
+    completeBackup: format === "json" && selectedCards.length === cards.length,
     selected: true
   });
 }

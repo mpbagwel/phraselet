@@ -17,26 +17,26 @@
         </div>
       </div>
       <div class="popup-header-actions">
-        <button id="save-selection" class="primary-button quick-capture-button" type="button" title="Save the active selection (up to 500 characters)">
+        <button id="save-selection" class="primary-button quick-capture-button" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          <span>Save</span>
+          <span>Save selection</span>
         </button>
         <div id="export-menu-shell" class="export-menu-shell">
-          <button id="export-cards" class="icon-button" type="button" title="Export library (including archived cards)" aria-label="Export library" aria-haspopup="menu" aria-expanded="false" aria-controls="export-menu">
+          <button id="export-cards" class="icon-button" type="button" data-tooltip="Export all cards, including archived cards" aria-label="Export library" aria-haspopup="menu" aria-expanded="false" aria-controls="export-menu">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 15v5h14v-5"/></svg>
           </button>
           <div id="export-menu" class="export-menu" role="menu" hidden>
             <p class="export-scope">All cards, including archived</p>
             <button type="button" role="menuitem" data-export-format="json"><strong>JSON backup</strong><span>Restore in Phraselet</span></button>
-            <button type="button" role="menuitem" data-export-format="markdown"><strong>Markdown</strong><span>Readable in any notes app</span></button>
+            <button type="button" role="menuitem" data-export-format="markdown"><strong>Markdown</strong><span>Use in a text editor or notes app</span></button>
             <button type="button" role="menuitem" data-export-format="csv"><strong>CSV</strong><span>Open in a spreadsheet</span></button>
           </div>
         </div>
-        <button id="import-cards" class="icon-button" type="button" title="Import cards" aria-label="Import cards">
+        <button id="import-cards" class="icon-button" type="button" data-tooltip="Import cards from a JSON file" aria-label="Import cards">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0 4 4m-4-4L8 8"/><path d="M5 15v5h14v-5"/></svg>
         </button>
         <input id="import-file" type="file" accept="application/json,.json" hidden>
-        <button id="open-options" class="icon-button" type="button" title="Open settings" aria-label="Open Phraselet settings">
+        <button id="open-options" class="icon-button" type="button" data-tooltip="Open settings" aria-label="Open settings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3h5l.5 3 1.5 1 3-.9 2.5 4.3-2.5 2v1.2l2.5 2-2.5 4.3-3-.9-1.5 1-.5 3h-5l-.5-3-1.5-1-3 .9L2 15.7l2.5-2v-1.2l-2.5-2 2.5-4.3 3 .9 1.5-1Z" transform="translate(0 -1)"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
@@ -46,7 +46,7 @@
       <div class="search-field">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
         <label class="sr-only" for="search">Search saved text, notes, tags, context, and sources</label>
-        <input id="search" type="search" placeholder="Search text, tags, context…" autocomplete="off">
+        <input id="search" type="search" placeholder="Search your library…" autocomplete="off">
       </div>
     </section>
 
@@ -54,9 +54,12 @@
       <section class="filter-row" aria-label="Filter cards">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
         <label class="sr-only" for="tag-filter">Filter by tag</label>
-        <select id="tag-filter" aria-label="Filter by tag">
-          <option value="">All tags</option>
-        </select>
+        <div class="tag-filter-control">
+          <span id="tag-filter-label" aria-hidden="true">All tags</span>
+          <select id="tag-filter" aria-label="Filter by tag">
+            <option value="">All tags</option>
+          </select>
+        </div>
         <button id="manage-tag" class="text-button" type="button" hidden disabled aria-expanded="false" aria-controls="tag-manager">Edit tag</button>
         <label class="sr-only" for="view-filter">Choose card view</label>
         <select id="view-filter" aria-label="Choose card view">
@@ -66,7 +69,7 @@
         </select>
       </section>
 
-      <button id="toggle-selection" class="text-button selection-toggle" type="button" aria-pressed="false" title="Select cards for bulk actions">Select</button>
+      <button id="toggle-selection" class="text-button selection-toggle" type="button" aria-pressed="false">Select</button>
     </div>
 
     <aside id="backup-reminder" class="backup-reminder" aria-labelledby="backup-reminder-title" hidden>
@@ -84,40 +87,55 @@
       <div class="bulk-selection-row">
         <label class="bulk-select-all">
           <input id="bulk-select-all" type="checkbox">
-          <span id="bulk-select-all-label">Select all matching</span>
+          <span id="bulk-select-all-label">All matching</span>
         </label>
         <span id="bulk-selection-count" class="bulk-selection-count" role="status" aria-live="polite">0 selected</span>
         <button id="clear-selection" class="text-button" type="button">Clear</button>
       </div>
-      <div class="bulk-tag-row">
-        <label class="sr-only" for="bulk-tag-name">Tag for selected cards</label>
-        <input id="bulk-tag-name" type="text" maxlength="40" placeholder="Tag selected cards" list="tag-suggestions" autocomplete="off">
-        <button id="bulk-add-tag" class="secondary-button" type="button">Add</button>
-        <button id="bulk-remove-tag" class="secondary-button" type="button">Remove</button>
+      <div class="bulk-toolbar-row">
+        <button id="bulk-tags" class="secondary-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="bulk-tags-panel">Tags <span aria-hidden="true">⌄</span></button>
+        <button id="bulk-move" class="secondary-button" type="button">Archive</button>
+        <button id="bulk-more" class="secondary-button" type="button" aria-expanded="false" aria-controls="bulk-more-panel">More <span aria-hidden="true">⋯</span></button>
       </div>
-      <div class="bulk-export-row">
-        <button id="bulk-copy" class="secondary-button" type="button">Copy text</button>
-        <label class="sr-only" for="bulk-export-format">Export format for selected cards</label>
-        <select id="bulk-export-format" aria-label="Export format for selected cards">
-          <option value="markdown">Markdown</option>
-          <option value="csv">CSV</option>
-          <option value="json">JSON</option>
-        </select>
-        <button id="bulk-export" class="secondary-button" type="button">Export selected</button>
+      <section id="bulk-tags-panel" class="bulk-popover bulk-tags-panel" role="dialog" aria-labelledby="bulk-tags-title" hidden>
+        <h2 id="bulk-tags-title">Tags for selected cards</h2>
+        <div id="bulk-tag-list" class="bulk-tag-list"></div>
+        <form id="bulk-new-tag-form" class="bulk-new-tag-form">
+          <label class="sr-only" for="bulk-tag-name">New tag for selected cards</label>
+          <input id="bulk-tag-name" type="text" maxlength="40" placeholder="New tag" list="tag-suggestions" autocomplete="off">
+          <button class="secondary-button" type="submit">Add</button>
+        </form>
+        <p id="bulk-tag-status" class="bulk-tag-status" role="status" aria-live="polite"></p>
+        <div class="bulk-tag-footer">
+          <button id="bulk-apply-tags" class="primary-button" type="button">Apply</button>
+          <button id="bulk-cancel-tags" class="text-button" type="button">Cancel</button>
+        </div>
+      </section>
+      <div id="bulk-move-panel" class="bulk-popover bulk-menu" aria-label="Move selected cards" hidden>
+        <button id="bulk-archive" type="button">Archive current cards</button>
+        <button id="bulk-restore" type="button">Restore archived cards</button>
       </div>
-      <div class="bulk-state-row">
-        <button id="bulk-archive" class="secondary-button" type="button">Archive</button>
-        <button id="bulk-restore" class="secondary-button" type="button">Restore</button>
-        <button id="bulk-delete" class="danger-button" type="button">Delete</button>
+      <div id="bulk-more-panel" class="bulk-popover bulk-menu bulk-menu-right" aria-label="More selection actions" hidden>
+        <button id="bulk-copy" type="button">Copy text</button>
+        <button id="bulk-export" type="button">Export…</button>
+        <hr>
+        <button id="bulk-delete" class="delete-action" type="button">Delete…</button>
+      </div>
+      <div id="bulk-export-panel" class="bulk-popover bulk-menu bulk-menu-right" aria-label="Export selected cards" hidden>
+        <button id="bulk-export-back" class="bulk-menu-back" type="button">‹ More</button>
+        <button data-bulk-export-format="markdown" type="button">Markdown</button>
+        <button data-bulk-export-format="csv" type="button">CSV</button>
+        <button data-bulk-export-format="json" type="button">JSON</button>
       </div>
     </section>
 
     <section id="tag-manager" class="tag-manager" hidden>
       <p class="eyebrow">Manage selected tag</p>
+      <p class="field-help">Changes apply to this tag across your library. Cards are kept.</p>
       <form id="tag-manager-form">
         <input id="tag-name" name="tagName" type="text" maxlength="40" aria-label="Tag name" autocomplete="off">
         <button class="secondary-button" type="submit">Rename</button>
-        <button id="delete-tag" class="danger-button" type="button">Delete</button>
+        <button id="delete-tag" class="danger-button" type="button">Delete tag</button>
       </form>
     </section>
 

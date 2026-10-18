@@ -58,7 +58,7 @@ for (const failure of ["read", "write"]) {
 
     app.state.failure = null;
     await app.context.saveOptions();
-    assert.equal(status.textContent, "Option saved");
+    assert.equal(status.textContent, "Preferences saved");
     assert.equal(status.classList.contains("is-error"), false);
     assert.equal(save.disabled, false);
     assert.deepEqual(app.state.settings, { afterSave: "open_popup", otherPreference: "keep" });

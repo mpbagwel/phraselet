@@ -436,13 +436,27 @@ async function bulkUpdateCards(message) {
     return { ok: false, error: "Select at least one card." };
   }
 
-  if (!["add_tag", "remove_tag", "archive", "restore", "delete"].includes(operation)) {
+  if (!["add_tag", "remove_tag", "update_tags", "archive", "restore", "delete"].includes(operation)) {
     return { ok: false, error: "That bulk action is not supported." };
   }
 
   const tag = cleanText(message.tag).slice(0, 40);
   if (["add_tag", "remove_tag"].includes(operation) && !tag) {
     return { ok: false, error: "Enter a tag name." };
+  }
+
+  const normalizeTagChanges = (values) => [...new Map(values.map((value) => {
+    const label = cleanText(value).slice(0, 40);
+    return [label.toLowerCase(), label];
+  }).filter(([key]) => key)).values()];
+  if (operation === "update_tags" && (!Array.isArray(message.addTags) || !Array.isArray(message.removeTags))) {
+    return { ok: false, error: "Choose the tags to add or remove." };
+  }
+  const additions = operation === "update_tags" ? normalizeTagChanges(message.addTags) : [];
+  const removalKeys = new Set(operation === "update_tags" ? normalizeTagChanges(message.removeTags).map((value) => value.toLowerCase()) : []);
+  if (additions.length > 12) return { ok: false, error: "A card can have up to 12 tags." };
+  if (additions.some((value) => removalKeys.has(value.toLowerCase()))) {
+    return { ok: false, error: "A tag cannot be added and removed at the same time." };
   }
 
   return mutateCards((cards) => {
@@ -474,6 +488,17 @@ async function bulkUpdateCards(message) {
         }
 
         const tags = normalizeCardTags(card.tags);
+        if (operation === "update_tags") {
+          const nextTags = tags.filter((value) => !removalKeys.has(value.toLowerCase()));
+          additions.forEach((value) => {
+            if (!nextTags.some((candidate) => candidate.toLowerCase() === value.toLowerCase())) nextTags.push(value);
+          });
+          // Throw before the queued mutation writes anything, so Apply is atomic.
+          if (nextTags.length > 12) throw new Error("A card can have up to 12 tags. Remove a tag before adding another.");
+          if (JSON.stringify(tags) === JSON.stringify(nextTags)) return card;
+          changed += 1;
+          return { ...card, tags: nextTags };
+        }
         const tagKey = tag.toLowerCase();
         const hasTag = tags.some((candidate) => candidate.toLowerCase() === tagKey);
 

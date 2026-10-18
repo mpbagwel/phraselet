@@ -73,7 +73,6 @@ async function snapshotPopup(browser, scene) {
       for (const id of ["store-card-1", "store-card-2"]) {
         await page.locator(`input[data-action="select-card"][data-id="${id}"]`).check();
       }
-      await page.locator("#bulk-tag-name").fill("review");
       assert.equal(await page.locator("#bulk-selection-count").textContent(), "2 selected");
     } else {
       assert.equal(await page.locator("#backup-reminder").isVisible(), true);

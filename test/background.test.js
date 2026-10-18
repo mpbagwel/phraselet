@@ -560,6 +560,74 @@ test("bulk delete removes only selected cards", async () => {
   assert.deepEqual(Array.from(localStorage["phraselet.cards"], (card) => card.id), ["two"]);
 });
 
+test("tag checklist applies additions and removals together while preserving concurrent tags", async () => {
+  const app = loadBackground({ aiEnrichment: false, initialCards: [
+    { id: "one", selectedText: "First", tags: ["old", "shared", "mixed"] },
+    { id: "two", selectedText: "Second", tags: ["shared"] },
+    { id: "three", selectedText: "Unselected", tags: ["old"] }
+  ] });
+  await app.ready;
+  const concurrent = sendRuntimeMessage(app.runtimeMessageHandler, {
+    type: "PHRASELET_BULK_UPDATE_CARDS", operation: "add_tag", cardIds: ["one"], tag: "concurrent"
+  });
+  const apply = sendRuntimeMessage(app.runtimeMessageHandler, {
+    type: "PHRASELET_BULK_UPDATE_CARDS", operation: "update_tags", cardIds: ["one", "two"],
+    addTags: ["New", "NEW"], removeTags: ["OLD"]
+  });
+  const [, result] = await Promise.all([concurrent, apply]);
+  assert.equal(result.ok, true);
+  assert.equal(result.changed, 2);
+  const cards = app.localStorage["phraselet.cards"];
+  assert.deepEqual(cards[0].tags, ["shared", "mixed", "concurrent", "NEW"]);
+  assert.deepEqual(cards[1].tags, ["shared", "NEW"]);
+  assert.deepEqual(cards[2].tags, ["old"]);
+});
+
+test("tag checklist rejects the whole change when any card would exceed the tag limit", async () => {
+  let writes = 0;
+  const app = loadBackground({ aiEnrichment: false, beforeCardsWrite: async () => { writes += 1; }, initialCards: [
+    { id: "one", selectedText: "First", tags: ["old"] },
+    { id: "two", selectedText: "Full", tags: Array.from({ length: 12 }, (_, i) => `tag-${i}`) }
+  ] });
+  await app.ready;
+  const before = structuredClone(app.localStorage["phraselet.cards"]);
+  const writesBefore = writes;
+  const result = await sendRuntimeMessage(app.runtimeMessageHandler, {
+    type: "PHRASELET_BULK_UPDATE_CARDS", operation: "update_tags", cardIds: ["one", "two"],
+    addTags: ["new"], removeTags: ["old"]
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /12 tags/);
+  assert.deepEqual(app.localStorage["phraselet.cards"], before);
+  assert.equal(writes, writesBefore);
+  const retry = await sendRuntimeMessage(app.runtimeMessageHandler, {
+    type: "PHRASELET_BULK_UPDATE_CARDS", operation: "update_tags", cardIds: ["one", "two"],
+    addTags: ["new"], removeTags: ["old", "tag-0"]
+  });
+  assert.equal(retry.ok, true);
+  assert.equal(app.localStorage["phraselet.cards"][1].tags.length, 12);
+  assert.equal(writes, writesBefore + 1);
+});
+
+test("tag checklist reports storage failures without losing existing tags and permits retry", async () => {
+  let rejectWrite = false;
+  const app = loadBackground({ aiEnrichment: false, initialCards: [
+    { id: "one", selectedText: "First", tags: ["keep"] }
+  ], beforeCardsWrite: async () => { if (rejectWrite) throw new Error("Storage unavailable"); } });
+  await app.ready;
+  const message = {
+    type: "PHRASELET_BULK_UPDATE_CARDS", operation: "update_tags", cardIds: ["one"],
+    addTags: ["new"], removeTags: []
+  };
+  rejectWrite = true;
+  const failed = await sendRuntimeMessage(app.runtimeMessageHandler, message);
+  assert.equal(failed.ok, false);
+  assert.deepEqual(app.localStorage["phraselet.cards"][0].tags, ["keep"]);
+  rejectWrite = false;
+  assert.equal((await sendRuntimeMessage(app.runtimeMessageHandler, message)).ok, true);
+  assert.deepEqual(app.localStorage["phraselet.cards"][0].tags, ["keep", "new"]);
+});
+
 test("bulk tags survive an AI explanation that completes later", async () => {
   let resolveFetch;
   const fetchStarted = new Promise((resolve) => {
