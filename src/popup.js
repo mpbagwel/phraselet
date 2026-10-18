@@ -819,7 +819,7 @@ function renderCard(card) {
   const tagFormId = disclosureId(card.id, "add-tag");
   const tagEditorOpen = openCardTagEditors.has(card.id);
   const note = card.note
-    ? `<p class="card-note" data-card-details>${escapeHtml(card.note)}</p>`
+    ? `<p class="card-note" data-card-details><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg><span class="sr-only">Note: </span><span class="card-note-text">${escapeHtml(card.note)}</span></p>`
     : "";
   const relatedPhrases = renderRelatedPhrases(card, relatedPanelId);
   const editor = renderCardEditor(card, cardId, editPanelId);
@@ -854,7 +854,7 @@ function renderCard(card) {
           ${context ? renderDisclosureControl("context", "Context", contextPanelId) : ""}
           ${renderDisclosureControl("edit", "Edit", editPanelId)}
           <button class="add-tag-toggle" data-action="toggle-tag-editor" data-id="${cardId}" type="button" aria-expanded="${tagEditorOpen}" aria-controls="${tagFormId}"><span class="disclosure-symbol" aria-hidden="true">${tagEditorOpen ? "−" : "+"}</span>Add tag</button>
-          ${relatedPhrases ? renderDisclosureControl("related", `Related (${relatedPhrases.count})`, relatedPanelId) : ""}
+          ${relatedPhrases ? renderDisclosureControl("related", "Related", relatedPanelId) : ""}
           ${enrichmentPanel ? renderDisclosureControl("more", "More", morePanelId) : ""}
         </div>
         <div class="card-disclosure-panels">
@@ -916,7 +916,6 @@ function renderRelatedPhrases(card, panelId) {
   `).join("");
 
   return {
-    count: relatedCards.length,
     panel: `<div id="${panelId}" class="card-disclosure-panel related-list" data-panel-id="related" hidden>${links}</div>`
   };
 }
@@ -967,6 +966,7 @@ function renderCardEditor(card, cardId, panelId) {
 
 function renderDisclosureControl(panel, label, panelId) {
   const help = {
+    edit: "Edit snippet, note, source title, and context",
     more: "Show examples and related terms",
     related: "Show cards with shared tags",
     context: "Show the surrounding text saved from the source"
@@ -1057,7 +1057,8 @@ function toggleTagManager() {
   }
 
   tagManagerEl.hidden = !tagManagerEl.hidden;
-  manageTagEl.textContent = tagManagerEl.hidden ? "Edit tag" : "Close";
+  manageTagEl.setAttribute("aria-label", tagManagerEl.hidden ? "Edit tag" : "Close tag editor");
+  manageTagEl.dataset.tooltip = tagManagerEl.hidden ? "Edit tag" : "Close tag editor";
   manageTagEl.setAttribute("aria-expanded", String(!tagManagerEl.hidden));
 
   if (!tagManagerEl.hidden) {
@@ -1069,7 +1070,8 @@ function toggleTagManager() {
 
 function closeTagManager() {
   tagManagerEl.hidden = true;
-  manageTagEl.textContent = "Edit tag";
+  manageTagEl.setAttribute("aria-label", "Edit tag");
+  manageTagEl.dataset.tooltip = "Edit tag";
   manageTagEl.setAttribute("aria-expanded", "false");
 }
 

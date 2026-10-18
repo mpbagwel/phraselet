@@ -1,4 +1,6 @@
 // Shared hover and keyboard help. Delegation also covers cards rendered later.
+const SHOW_DELAY_MS = 600;
+
 export function initTooltips() {
   const tooltip = document.createElement("div");
   tooltip.id = "phraselet-tooltip";
@@ -46,9 +48,9 @@ export function initTooltips() {
     tooltip.style.top = `${top}px`;
   }
 
-  function show(trigger, delay = 400) {
+  function show(trigger) {
     clearTimeout(hideTimer);
-    if (trigger === dismissed || (trigger === active && !tooltip.hidden)) return;
+    if (trigger === dismissed || trigger === active) return;
     hide();
     if (!trigger) return;
     active = trigger;
@@ -66,14 +68,15 @@ export function initTooltips() {
       }
       tooltip.hidden = false;
       position();
-    }, delay);
+    }, SHOW_DELAY_MS);
   }
 
   function leave() {
     clearTimeout(hideTimer);
     if (dismissed !== hovered && dismissed !== focused) dismissed = null;
     const next = hovered || focused;
-    if (next) show(next, 0);
+    if (next) show(next);
+    else if (tooltip.hidden) hide();
     else hideTimer = setTimeout(hide, 120); // Allow crossing the gap to the tooltip.
   }
 
@@ -103,7 +106,7 @@ export function initTooltips() {
   document.addEventListener("focusin", (event) => {
     focused = triggerFrom(event.target);
     if (focused === dismissed) dismissed = null;
-    if (focused) show(focused, 0);
+    if (focused) show(focused);
   });
   document.addEventListener("focusout", () => {
     focused = null;

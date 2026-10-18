@@ -267,10 +267,13 @@ input:focus, select:focus, textarea:focus {
 /* Popup */
 
 .popup-shell {
+  --canvas: #fafaf8;
+  --muted: #666f6b;
+  --faint: #666f6b;
   width: 430px;
   min-height: 560px;
   overflow-x: hidden;
-  background: radial-gradient(circle at 92% 2%, rgb(65 111 134 / 6%), transparent 150px), var(--canvas);
+  background: radial-gradient(circle at 92% 2%, rgb(65 111 134 / 3%), transparent 150px), var(--canvas);
 }
 
 .topbar {
@@ -376,31 +379,14 @@ kbd {
 
 .library-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: flex-start;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   padding: 0 16px 10px;
 }
 
-.library-toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.filter-row {
-  flex: 0 1 auto;
-  max-width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, max-content) 104px;
-  justify-content: start;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
 .tag-filter-group {
+  flex: 0 1 auto;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -419,7 +405,7 @@ kbd {
   color: var(--muted);
 }
 
-.filter-row select {
+.library-toolbar select {
   min-height: 36px;
   border: 0;
   padding-right: 30px;
@@ -430,7 +416,7 @@ kbd {
   font-weight: 620;
 }
 
-.filter-row select:focus { box-shadow: none; }
+.library-toolbar select:focus { box-shadow: none; }
 
 .tag-filter-control {
   position: relative;
@@ -460,14 +446,21 @@ kbd {
   white-space: nowrap;
 }
 
-#manage-tag { grid-column: 3; }
+#manage-tag {
+  grid-column: 3;
+  width: 28px;
+  min-height: 36px;
+  padding: 0 6px;
+}
+#manage-tag svg { width: 16px; height: 16px; }
 
 #view-filter {
-  width: 104px;
+  flex: 0 0 88px;
+  width: 88px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background-color: rgb(255 255 255 / 78%);
-  padding: 0 22px;
+  padding: 0 26px 0 10px;
   background-position: right 7px center;
   text-align: center;
   text-align-last: center;
@@ -839,12 +832,14 @@ kbd {
 }
 
 .card-note {
-  border-left: 2px solid #bccbd1;
-  padding: 3px 0 3px 10px;
-  color: var(--sage);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--ink-soft);
   font-size: 12.5px;
-  white-space: pre-wrap;
 }
+.card-note > svg { flex: 0 0 16px; width: 16px; height: 16px; margin-top: 1px; }
+.card-note-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .examples {
   display: grid;
@@ -952,15 +947,15 @@ details[open] > summary { color: var(--ink-soft); }
 }
 
 .card-disclosure-controls {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 4px;
 }
 
 .card-disclosure-controls button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 23px;
   border: 0;
   border-radius: 6px;

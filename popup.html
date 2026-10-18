@@ -51,30 +51,25 @@
     </section>
 
     <div class="library-toolbar">
-      <section class="filter-row" aria-label="Filter cards">
-        <div class="tag-filter-group">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
-          <label class="sr-only" for="tag-filter">Filter by tag</label>
-          <div class="tag-filter-control">
-            <span id="tag-filter-label" aria-hidden="true">All tags</span>
-            <select id="tag-filter" aria-label="Filter by tag">
-              <option value="">All tags</option>
-            </select>
-          </div>
-          <button id="manage-tag" class="text-button" type="button" hidden disabled aria-expanded="false" aria-controls="tag-manager">Edit tag</button>
+      <div class="tag-filter-group">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        <label class="sr-only" for="tag-filter">Filter by tag</label>
+        <div class="tag-filter-control">
+          <span id="tag-filter-label" aria-hidden="true">All tags</span>
+          <select id="tag-filter" aria-label="Filter by tag">
+            <option value="">All tags</option>
+          </select>
         </div>
-        <label class="sr-only" for="view-filter">Choose card view</label>
-        <select id="view-filter" aria-label="Choose card view">
-          <option value="current">Current</option>
-          <option value="archived">Archived</option>
-          <option value="">All cards</option>
-        </select>
-      </section>
-
-      <div class="library-toolbar-actions">
-        <button id="toggle-cards" class="text-button card-view-toggle" type="button" aria-expanded="true" aria-controls="cards" aria-label="Collapse all cards">Collapse all</button>
-        <button id="toggle-selection" class="text-button selection-toggle" type="button" aria-pressed="false">Select</button>
+        <button id="manage-tag" class="text-button" type="button" hidden disabled aria-label="Edit tag" data-tooltip="Edit tag" aria-expanded="false" aria-controls="tag-manager"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20h5L21 8l-5-5L4 15Z"/></svg></button>
       </div>
+      <label class="sr-only" for="view-filter">Choose card view</label>
+      <select id="view-filter" aria-label="Choose card view">
+        <option value="current">Current</option>
+        <option value="archived">Archived</option>
+        <option value="">All cards</option>
+      </select>
+      <button id="toggle-cards" class="text-button card-view-toggle" type="button" aria-expanded="true" aria-controls="cards" aria-label="Collapse all cards">Collapse all</button>
+      <button id="toggle-selection" class="text-button selection-toggle" type="button" aria-pressed="false">Select</button>
     </div>
 
     <aside id="backup-reminder" class="backup-reminder" aria-labelledby="backup-reminder-title" hidden>
@@ -136,7 +131,7 @@
 
     <section id="tag-manager" class="tag-manager" hidden>
       <p class="eyebrow">Manage selected tag</p>
-      <p class="field-help">Changes apply to this tag across your library. Cards are kept.</p>
+      <p class="field-help">Changes apply to this tag across your library.</p>
       <form id="tag-manager-form">
         <input id="tag-name" name="tagName" type="text" maxlength="40" aria-label="Tag name" autocomplete="off">
         <button class="secondary-button" type="submit">Rename</button>
